@@ -13,6 +13,7 @@ import SwiftUI
 struct AppDetailSidebar: View {
     let app: AppUsage
     @Binding var selectedApp: AppUsage?
+    var onCategoryChanged: (() -> Void)? = nil
     @State private var windows: [WindowUsage] = []
     @State private var editingCategory = false
     
@@ -109,7 +110,7 @@ struct AppDetailSidebar: View {
             windows = UsageDatabase.shared.getWindows(for: app.id.uuidString)
         }
         .sheet(isPresented: $editingCategory) {
-            AppCategoryPickerView(app: app)
+            AppCategoryPickerView(app: app, onComplete: onCategoryChanged)
         }
     }
 }
