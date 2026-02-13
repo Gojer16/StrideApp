@@ -160,7 +160,7 @@ The app follows a clean separation of concerns with specialized services:
 ### Main Window
 The main window provides a navigation sidebar with these sections:
 
-- **Now**: Live tracking view showing current app, window title, and session timer
+- **Live**: Live tracking view showing current app, window title, and session timer
 - **All Apps**: Browse all tracked applications with search, filter, and sort options
 - **Categories**: Manage custom categories and assign apps
 - **Weekly Log**: Track focused work sessions (pomodoros) with categories and tasks
