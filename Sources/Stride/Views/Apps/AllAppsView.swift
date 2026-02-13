@@ -1,20 +1,20 @@
 import SwiftUI
 
 /**
- * AllAppsView - Displays all tracked applications with filtering and sorting options.
- *
- * Aesthetic: Warm Paper/Editorial Light
- * - Warm cream/paper backgrounds
- * - Clean white cards with soft shadows
- * - Terracotta/ochre accents
- * - Smooth animations and interactions
- *
- * Features:
- * - Search by app name
- * - Filter by category
- * - Sort by time, name, or visits
- * - Grid layout with app cards
- * - Auto-refresh when view appears
+ * AllAppsView - The primary Data Hub for Stride.
+ * 
+ * This view provides a high-level overview of every application tracked by the system.
+ * It serves as the "Big Picture" tab where users can search, sort, and filter their 
+ * entire usage history.
+ * 
+ * **Architecture:**
+ * - Uses a `NavigationSplitView` to balance a high-density grid with a detailed sidebar.
+ * - `mainContent`: A searchable grid of `AppGridCard` components.
+ * - `detailSidebar`: An `AppDetailSidebar` that opens when an app is selected.
+ * 
+ * **Data Flow:**
+ * - Fetches all apps from `UsageDatabase` on appear.
+ * - Triggers a re-load whenever the `selectedApp` changes or an app's category is updated.
  */
 struct AllAppsView: View {
     @State private var applications: [AppUsage] = []
@@ -37,11 +37,12 @@ struct AllAppsView: View {
         case visits = "Visits"
     }
     
+    /// Logic for filtering the grid based on search text and category selection
     var filteredApps: [AppUsage] {
         var apps = applications
         
         if let category = selectedCategory {
-            apps = apps.filter { $0.categoryId == category.id.uuidString }
+            apps = apps.filter { $0.categoryId == category.id.uuidString.lowercased() }
         }
         
         if !searchText.isEmpty {
@@ -65,10 +66,11 @@ struct AllAppsView: View {
             mainContent
         } detail: {
             if let app = selectedApp {
+                // The Sidebar provides the actual "Edit" capability for individual apps
                 AppDetailSidebar(app: app, selectedApp: $selectedApp, onCategoryChanged: {
                     loadData()
                 })
-                .id(app.id) // Force redraw when selection changes
+                .id(app.id) // Force redraw when selection changes to update stats
             } else {
                 EmptyDetailView(
                     title: "Select an App",
@@ -84,18 +86,19 @@ struct AllAppsView: View {
             }
         }
         .onChange(of: selectedApp) {
-            // Refresh data when sidebar might have changed something (like category)
+            // Refresh data when selection changes to ensure the grid reflects sidebar changes
             loadData()
         }
     }
     
+    /// The left-side (or primary) container holding the header and the grid
     private var mainContent: some View {
         ZStack {
             backgroundColor
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Header
+                // Header: Search, Category Filter, and Sort
                 headerView
                     .padding(.horizontal, 24)
                     .padding(.top, 24)
@@ -110,7 +113,8 @@ struct AllAppsView: View {
         }
     }
     
-    // MARK: - Header
+    // MARK: - Subviews
+    
     private var headerView: some View {
         VStack(spacing: 20) {
             HStack(alignment: .center) {
@@ -129,135 +133,121 @@ struct AllAppsView: View {
             
             HStack(spacing: 12) {
                 // Search bar
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(secondaryText.opacity(0.7))
-                    
-                    TextField("Search apps...", text: $searchText)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(textColor)
-                    
-                    if !searchText.isEmpty {
-                        Button(action: { searchText = "" }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 16))
-                                .foregroundColor(secondaryText.opacity(0.6))
-                        }
-                        .buttonStyle(.plain)
-                        .transition(.scale.combined(with: .opacity))
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(cardBackground)
-                        .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
-                        )
-                )
-                .frame(maxWidth: .infinity)
+                searchBar
                 
-                // Category filter
-                Menu {
-                    Button("All Categories") {
-                        selectedCategory = nil
-                    }
-                    
-                    Divider()
-                    
-                    ForEach(categories) { category in
-                        Button(category.name) {
-                            selectedCategory = category
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: selectedCategory?.icon ?? "line.3.horizontal.decrease.circle")
-                            .font(.system(size: 14, weight: .medium))
-                        Text(selectedCategory?.name ?? "Filter")
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(selectedCategory != nil ? Color(hex: selectedCategory!.color).opacity(0.12) : cardBackground)
-                            .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .strokeBorder(
-                                        selectedCategory != nil ? Color(hex: selectedCategory!.color).opacity(0.3) : Color.black.opacity(0.08),
-                                        lineWidth: 1
-                                    )
-                            )
-                    )
-                    .foregroundColor(selectedCategory != nil ? Color(hex: selectedCategory!.color) : textColor)
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
+                // Category filter menu
+                categoryFilterMenu
                 
-                // Sort picker
-                Picker("", selection: $sortOrder) {
-                    ForEach(SortOrder.allCases, id: \.self) { order in
-                        Text(order.rawValue)
-                            .font(.system(size: 12, weight: .medium))
-                            .tag(order)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 200)
+                // Sort segmented picker
+                sortPicker
             }
         }
     }
     
-    // MARK: - Empty State
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(secondaryText.opacity(0.7))
+            
+            TextField("Search apps...", text: $searchText)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(textColor)
+            
+            if !searchText.isEmpty {
+                Button(action: { searchText = "" }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(secondaryText.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(cardBackground)
+                .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
+                )
+        )
+        .frame(maxWidth: .infinity)
+    }
+    
+    private var categoryFilterMenu: some View {
+        Menu {
+            Button("All Categories") {
+                selectedCategory = nil
+            }
+            
+            Divider()
+            
+            ForEach(categories) { category in
+                Button(category.name) {
+                    selectedCategory = category
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: selectedCategory?.icon ?? "line.3.horizontal.decrease.circle")
+                    .font(.system(size: 14, weight: .medium))
+                Text(selectedCategory?.name ?? "Filter")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(selectedCategory != nil ? Color(hex: selectedCategory!.color).opacity(0.12) : cardBackground)
+                    .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(
+                                selectedCategory != nil ? Color(hex: selectedCategory!.color).opacity(0.3) : Color.black.opacity(0.08),
+                                lineWidth: 1
+                            )
+                    )
+            )
+            .foregroundColor(selectedCategory != nil ? Color(hex: selectedCategory!.color) : textColor)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+    
+    private var sortPicker: some View {
+        Picker("", selection: $sortOrder) {
+            ForEach(SortOrder.allCases, id: \.self) { order in
+                Text(order.rawValue)
+                    .tag(order)
+            }
+        }
+        .pickerStyle(.segmented)
+        .frame(width: 200)
+    }
+    
     private var emptyStateView: some View {
         VStack(spacing: 20) {
             Spacer()
-            
             ZStack {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [accentColor.opacity(0.1), Color.clear],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 80
-                        )
-                    )
-                    .frame(width: 160, height: 160)
-                
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 48, weight: .light))
-                    .foregroundColor(accentColor.opacity(0.6))
+                Circle().fill(accentColor.opacity(0.1)).frame(width: 160, height: 160)
+                Image(systemName: "magnifyingglass").font(.system(size: 48, weight: .light)).foregroundColor(accentColor.opacity(0.6))
             }
-            
             VStack(spacing: 8) {
-                Text("No Apps Found")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(textColor)
-                
-                Text("Try adjusting your search or filters")
-                    .font(.system(size: 14))
-                    .foregroundColor(secondaryText)
+                Text("No Apps Found").font(.system(size: 20, weight: .semibold)).foregroundColor(textColor)
+                Text("Try adjusting your search or filters").font(.system(size: 14)).foregroundColor(secondaryText)
             }
-            
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
-    // MARK: - Apps Grid
     private var appsGridView: some View {
         ScrollView {
             LazyVGrid(
-                columns: [
-                    GridItem(.adaptive(minimum: 300), spacing: 16)
-                ],
+                columns: [GridItem(.adaptive(minimum: 300), spacing: 16)],
                 spacing: 16
             ) {
                 ForEach(Array(filteredApps.enumerated()), id: \.element.id) { index, app in
@@ -268,15 +258,12 @@ struct AllAppsView: View {
                         )
                         .contentShape(Rectangle())
                         .onTapGesture {
+                            // Selecting an app opens the Detail Sidebar
                             selectedApp = app
                         }
                         .opacity(isAnimating ? 1 : 0)
                         .offset(y: isAnimating ? 0 : 20)
-                        .animation(
-                            .spring(response: 0.5, dampingFraction: 0.75)
-                            .delay(Double(index) * 0.03),
-                            value: isAnimating
-                        )
+                        .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(Double(index) * 0.03), value: isAnimating)
                 }
             }
             .padding(.horizontal, 24)
@@ -285,8 +272,14 @@ struct AllAppsView: View {
     }
     
     // MARK: - Data Loading
+    
+    /**
+     * Refreshes the local application and category lists from the database.
+     * 
+     * Ensures that any changes made in other tabs (like Categories) 
+     * are reflected here.
+     */
     private func loadData() {
-        // Always reload fresh data from database
         applications = UsageDatabase.shared.getAllApplications()
         categories = UsageDatabase.shared.getAllCategories()
     }
