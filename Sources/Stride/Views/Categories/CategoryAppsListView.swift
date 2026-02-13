@@ -11,15 +11,14 @@ import SwiftUI
  */
 struct CategoryAppsListView: View {
     let category: Category
-    @State private var apps: [AppUsage]
+    @State private var apps: [AppUsage] = []
     @State private var showingAssignApps = false
     @State private var isAnimating = false
     @State private var hoveredAppId: UUID?
     var onAppsChanged: (() -> Void)?
     
-    init(category: Category, apps: [AppUsage], onAppsChanged: (() -> Void)? = nil) {
+    init(category: Category, onAppsChanged: (() -> Void)? = nil) {
         self.category = category
-        _apps = State(initialValue: apps)
         self.onAppsChanged = onAppsChanged
     }
     
@@ -47,6 +46,7 @@ struct CategoryAppsListView: View {
         .padding(.trailing, 20)
         .padding(.bottom, 20)
         .onAppear {
+            loadCategoryApps()
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                 isAnimating = true
             }
