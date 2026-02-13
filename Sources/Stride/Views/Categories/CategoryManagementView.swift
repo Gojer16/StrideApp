@@ -15,7 +15,6 @@ struct CategoryManagementView: View {
     @State private var showingAddCategory = false
     @State private var editingCategory: Category?
     @State private var selectedCategory: Category?
-    @State private var categoryApps: [AppUsage] = []
     @State private var isAnimating = false
     
     private let backgroundColor = Color(red: 0.98, green: 0.973, blue: 0.957)
@@ -49,9 +48,6 @@ struct CategoryManagementView: View {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                 isAnimating = true
             }
-        }
-        .onChange(of: selectedCategory) { oldValue, newValue in
-            loadCategoryApps()
         }
         .sheet(isPresented: $showingAddCategory) {
             CategoryEditorView(category: nil) { _ in
@@ -165,10 +161,9 @@ struct CategoryManagementView: View {
                 if let category = selectedCategory {
                     CategoryAppsListView(
                         category: category, 
-                        apps: categoryApps,
                         onAppsChanged: {
-                            // Reload apps when they change
-                            self.loadCategoryApps()
+                            // Reload categories to update counts in the list
+                            self.loadData()
                         }
                     )
                     .frame(minWidth: 400)
@@ -283,15 +278,6 @@ struct CategoryManagementView: View {
     // MARK: - Data Operations
     private func loadData() {
         categories = UsageDatabase.shared.getAllCategories()
-        loadCategoryApps()
-    }
-    
-    private func loadCategoryApps() {
-        if let category = selectedCategory {
-            categoryApps = UsageDatabase.shared.getApplicationsByCategory(categoryId: category.id.uuidString)
-        } else {
-            categoryApps = []
-        }
     }
     
     private func deleteCategory(_ category: Category) {
