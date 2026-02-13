@@ -18,6 +18,7 @@ struct WeeklyLogEntry: Identifiable, Codable, Equatable {
     var task: String
     var timeSpent: Double  // In hours (max 2.0)
     var progressNote: String
+    var winNote: String
     var isWinOfDay: Bool
     var createdAt: Date
     
@@ -28,6 +29,7 @@ struct WeeklyLogEntry: Identifiable, Codable, Equatable {
         task: String,
         timeSpent: Double,
         progressNote: String = "",
+        winNote: String = "",
         isWinOfDay: Bool = false,
         createdAt: Date = Date()
     ) {
@@ -38,6 +40,7 @@ struct WeeklyLogEntry: Identifiable, Codable, Equatable {
         // Cap at 2 hours maximum
         self.timeSpent = min(timeSpent, 2.0)
         self.progressNote = progressNote
+        self.winNote = winNote
         self.isWinOfDay = isWinOfDay
         self.createdAt = createdAt
     }
