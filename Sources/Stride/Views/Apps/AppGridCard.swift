@@ -1,17 +1,19 @@
 import SwiftUI
 
 /**
- * AppGridCard - Card component displaying app information in a grid layout.
- *
- * Aesthetic: Warm Paper/Editorial Light
- * - Clean white cards with soft shadows
- * - Category-colored icons with borders
- * - Smooth hover effects
- *
- * Shows app icon, name, category, visits, and total time spent.
+ * AppGridCard - A standardized card for high-density app listings.
+ * 
+ * Used in the `AllAppsView` to show a summary of an application's usage.
+ * 
+ * **Visual Identity:**
+ * - Clean, white aesthetic matching the "Warm Paper" theme.
+ * - Dynamic category-based coloring for icons.
+ * - Hover state triggers a subtle scale effect and shadow depth increase.
  */
 struct AppGridCard: View {
+    /// The application data model to display
     let app: AppUsage
+    
     @State private var isHovered = false
     
     private let cardBackground = Color.white
@@ -23,7 +25,7 @@ struct AppGridCard: View {
         let category = app.getCategory()
         
         HStack(spacing: 16) {
-            // Category icon
+            // MARK: Icon Section
             ZStack {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color(hex: category.color).opacity(0.12))
@@ -38,7 +40,7 @@ struct AppGridCard: View {
                     .foregroundColor(Color(hex: category.color))
             }
             
-            // App info
+            // MARK: App Info Section
             VStack(alignment: .leading, spacing: 5) {
                 Text(app.name)
                     .font(.system(size: 15, weight: .semibold))
@@ -49,9 +51,7 @@ struct AppGridCard: View {
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(secondaryText)
                     
-                    Text("•")
-                        .font(.system(size: 10))
-                        .foregroundColor(secondaryText.opacity(0.5))
+                    Text("•").font(.system(size: 10)).foregroundColor(secondaryText.opacity(0.5))
                     
                     Text("\(app.visitCount) visit\(app.visitCount == 1 ? "" : "s")")
                         .font(.system(size: 12, weight: .medium))
@@ -61,12 +61,13 @@ struct AppGridCard: View {
             
             Spacer()
             
-            // Time stats
+            // MARK: Metrics Section
             VStack(alignment: .trailing, spacing: 4) {
                 Text(app.formattedTotalTime())
                     .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundColor(textColor)
                 
+                // Show how much time was added just today
                 let todayTime = UsageDatabase.shared.getTodayTime(for: app.id.uuidString)
                 if todayTime > 0 {
                     Text("+\(todayTime.formatted()) today")
