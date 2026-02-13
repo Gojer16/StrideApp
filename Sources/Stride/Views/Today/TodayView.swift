@@ -1,359 +1,286 @@
 import SwiftUI
 
 /**
- Displays today's usage summary and top apps with an editorial dashboard aesthetic.
- 
- Features:
- - Large typographic header with date
- - Asymmetric summary cards with glass-morphism
- - Visual progress bars for app usage
- - Category distribution visualization
- - Staggered entrance animations
+ * TodayView - An editorial summary of the user's digital footprint for the current day.
+ * 
+ * **Role in Stride:**
+ * This view serves as the "Daily Mirror," providing a high-level summary of how 
+ * time was spent since midnight. It balances data density with an editorial 
+ * aesthetic to make usage statistics feel like a professional report.
+ * 
+ * **Key Features:**
+ * 1. Summary Grid: Displays three primary KPIs (Active Time, App Switches, Total Apps).
+ * 2. Category Mix: A visual donut chart showing the distribution of time across labels.
+ * 3. Top Utilization: A ranked list of the most used applications for the day.
+ * 
+ * **Design Philosophy:**
+ * - Clean "Warm Paper" background.
+ * - Glassmorphism for data containers.
+ * - Staggered spring animations for an energetic, premium feel.
  */
 struct TodayView: View {
     @State private var applications: [AppUsage] = []
     @State private var totalTime: TimeInterval = 0
+    @State private var totalVisits: Int = 0
     @State private var categoryBreakdown: [(category: Category, time: TimeInterval)] = []
+    
+    /// Controls the staggered entrance of UI components
     @State private var isLoaded = false
     
+    // MARK: - Design System Constants
+    
+    private let backgroundColor = Color(red: 0.98, green: 0.973, blue: 0.957)
+    private let textColor = Color(red: 0.1, green: 0.1, blue: 0.1)
+    private let secondaryText = Color(red: 0.4, green: 0.4, blue: 0.4)
+    private let accentColor = Color(hex: "#4A7C59") // Stride Moss
+    
     private var topApps: [AppUsage] {
-        applications.prefix(5).sorted {
-            UsageDatabase.shared.getTodayTime(for: $0.id.uuidString) >
-            UsageDatabase.shared.getTodayTime(for: $1.id.uuidString)
-        }
+        Array(applications.prefix(5))
     }
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 32) {
-                // Header with large date
-                headerSection
-                    .opacity(isLoaded ? 1 : 0)
-                    .offset(y: isLoaded ? 0 : 20)
-                    .animation(.easeOut(duration: 0.6).delay(0.1), value: isLoaded)
-                
-                // Summary cards - asymmetric layout
-                summarySection
-                    .opacity(isLoaded ? 1 : 0)
-                    .offset(y: isLoaded ? 0 : 20)
-                    .animation(.easeOut(duration: 0.6).delay(0.2), value: isLoaded)
-                
-                if !applications.isEmpty {
-                    // Category breakdown
-                    categorySection
-                        .opacity(isLoaded ? 1 : 0)
-                        .offset(y: isLoaded ? 0 : 20)
-                        .animation(.easeOut(duration: 0.6).delay(0.3), value: isLoaded)
+        ZStack {
+            backgroundColor.ignoresSafeArea()
+            
+            ScrollView {
+                VStack(spacing: 40) {
+                    // MARK: 1. Editorial Header
+                    headerSection
+                        .padding(.top, 24)
                     
-                    // Top apps with visual bars
-                    topAppsSection
-                        .opacity(isLoaded ? 1 : 0)
-                        .offset(y: isLoaded ? 0 : 20)
-                        .animation(.easeOut(duration: 0.6).delay(0.4), value: isLoaded)
+                    // MARK: 2. Summary KPI Grid
+                    metricsGrid
+                    
+                    if !applications.isEmpty {
+                        // MARK: 3. Distribution & Rankings
+                        HStack(alignment: .top, spacing: 32) {
+                            categoryDistributionSection
+                                .frame(maxWidth: .infinity)
+                            
+                            topAppsSection
+                                .frame(width: 380)
+                        }
+                    } else {
+                        // Shown when no data has been tracked for the day
+                        emptyStateView
+                    }
+                    
+                    Spacer()
                 }
+                .padding(.horizontal, 40)
+                .padding(.bottom, 40)
             }
-            .padding(.vertical, 24)
-            .padding(.horizontal, 24)
         }
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(NSColor.controlBackgroundColor),
-                    Color(NSColor.controlBackgroundColor).opacity(0.95),
-                    Color(hex: "#F8F7FA").opacity(0.5)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-        )
         .onAppear {
+            // Fetch fresh data and trigger entrance animations
             loadData()
-            withAnimation(.easeOut(duration: 0.6).delay(0.1)) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                 isLoaded = true
             }
         }
-        .onDisappear {
-            isLoaded = false
-        }
     }
     
-    // MARK: - Header Section
+    // MARK: - Sections
     
+    /**
+     * Large typographic header showing the current date and primary view title.
+     */
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(formattedDate())
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 12, weight: .black))
+                .foregroundColor(accentColor)
+                .tracking(2)
                 .textCase(.uppercase)
-                .tracking(1.5)
             
-            HStack(alignment: .lastTextBaseline, spacing: 12) {
-                Text("Today")
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
-                
-                Text("·")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                
-                Text(formattedTotalTime())
-                    .font(.system(size: 24, weight: .semibold, design: .rounded))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.blue, .purple],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-            }
+            Text("Day Summary")
+                .font(.system(size: 48, weight: .bold, design: .serif))
+                .foregroundColor(textColor)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .opacity(isLoaded ? 1 : 0)
+        .offset(y: isLoaded ? 0 : 20)
     }
     
-    // MARK: - Summary Section
-    
-    private var summarySection: some View {
-        HStack(spacing: 16) {
-            // Large card - Total Time
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Spacer()
-                    ZStack {
-                        Circle()
-                            .fill(Color.blue.opacity(0.12))
-                            .frame(width: 48, height: 48)
-                        
-                        Image(systemName: "clock.fill")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.blue, .cyan],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                    }
-                }
-                
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(formattedTotalTime())
-                        .font(.system(size: 36, weight: .bold, design: .rounded))
-                    
-                    Text("Total Time")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-                
-                // Progress indicator
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(Color.secondary.opacity(0.08))
-                            .frame(height: 6)
-                        
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(
-                                LinearGradient(
-                                    colors: [.blue, .cyan],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .frame(width: geo.size.width * dailyGoalProgress(), height: 6)
-                            .animation(.easeOut(duration: 1).delay(0.5), value: isLoaded)
-                    }
-                }
-                .frame(height: 6)
-                
-                Text("\(Int(dailyGoalProgress() * 100))% of daily goal")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color(NSColor.textBackgroundColor))
-                    .shadow(color: .black.opacity(0.03), radius: 20, x: 0, y: 4)
+    /**
+     * A row of cards summarizing the day's core metrics.
+     */
+    private var metricsGrid: some View {
+        HStack(spacing: 20) {
+            SummaryMetricCard(
+                title: "Active Time",
+                value: formattedTotalTime(),
+                icon: "clock.fill",
+                color: accentColor,
+                delay: 0.1,
+                isLoaded: isLoaded
             )
             
-            // Small card - Apps Used
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Spacer()
-                    ZStack {
-                        Circle()
-                            .fill(Color.purple.opacity(0.12))
-                            .frame(width: 44, height: 44)
-                        
-                        Image(systemName: "app.fill")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.purple, .pink],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                    }
-                }
-                
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("\(applications.count)")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                    
-                    Text("Apps Used")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-                
-                Spacer()
-            }
-            .padding(24)
-            .frame(width: 140)
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color(NSColor.textBackgroundColor))
-                    .shadow(color: .black.opacity(0.03), radius: 20, x: 0, y: 4)
+            SummaryMetricCard(
+                title: "App Switches",
+                value: "\(totalVisits)",
+                icon: "arrow.left.arrow.right",
+                color: Color(hex: "#C75B39"), // Stride Terracotta
+                delay: 0.2,
+                isLoaded: isLoaded
+            )
+            
+            SummaryMetricCard(
+                title: "Total Apps",
+                value: "\(applications.count)",
+                icon: "square.grid.2x2.fill",
+                color: Color(hex: "#5B7C8C"), // Stride Slate
+                delay: 0.3,
+                isLoaded: isLoaded
             )
         }
     }
     
-    // MARK: - Category Section
-    
-    private var categorySection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("By Category")
-                    .font(.system(size: 18, weight: .semibold))
-                
-                Spacer()
-                
-                Text("Time Distribution")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
+    /**
+     * A "Glass" container holding the donut chart and legend for category breakdown.
+     */
+    private var categoryDistributionSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("CATEGORY MIX")
+                .font(.system(size: 11, weight: .bold))
+                .tracking(1.5)
+                .foregroundColor(secondaryText)
             
-            HStack(spacing: 20) {
-                // Donut chart representation using ZStack
+            HStack(spacing: 32) {
+                // The visual donut chart
                 ZStack {
                     Circle()
-                        .stroke(Color.secondary.opacity(0.08), lineWidth: 24)
-                        .frame(width: 120, height: 120)
+                        .stroke(Color.black.opacity(0.03), lineWidth: 28)
                     
-                    // Build segments
                     ForEach(0..<min(categoryBreakdown.count, 5), id: \.self) { index in
                         Circle()
-                            .trim(
-                                from: categoryStartAngle(for: index),
-                                to: categoryEndAngle(for: index)
-                            )
+                            .trim(from: categoryStartAngle(for: index), to: categoryEndAngle(for: index))
                             .stroke(
                                 Color(hex: categoryBreakdown[index].category.color),
-                                style: StrokeStyle(lineWidth: 24, lineCap: .round)
+                                style: StrokeStyle(lineWidth: 28, lineCap: .butt)
                             )
-                            .frame(width: 120, height: 120)
                             .rotationEffect(.degrees(-90))
-                            .animation(.easeOut(duration: 0.8).delay(0.5 + Double(index) * 0.1), value: isLoaded)
                     }
                     
-                    // Center text
-                    VStack(spacing: 2) {
+                    VStack(spacing: 0) {
                         Text("\(categoryBreakdown.count)")
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
-                        Text("categories")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                        Text("LABELS")
+                            .font(.system(size: 8, weight: .black))
+                            .foregroundColor(secondaryText)
                     }
                 }
-                .frame(width: 120, height: 120)
+                .frame(width: 140, height: 140)
                 
-                // Legend
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(categoryBreakdown.prefix(4), id: \.category.id) { item in
-                        HStack(spacing: 8) {
-                            Circle()
+                // Detailed Legend
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(categoryBreakdown.prefix(5), id: \.category.id) { item in
+                        HStack(spacing: 10) {
+                            RoundedRectangle(cornerRadius: 3)
                                 .fill(Color(hex: item.category.color))
-                                .frame(width: 8, height: 8)
+                                .frame(width: 12, height: 12)
                             
                             Text(item.category.name)
-                                .font(.system(size: 13, weight: .medium))
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(textColor)
                             
                             Spacer()
                             
                             Text(item.time.formatted())
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.secondary)
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .foregroundColor(secondaryText)
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(20)
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color(NSColor.textBackgroundColor))
-                    .shadow(color: .black.opacity(0.03), radius: 20, x: 0, y: 4)
-            )
+            .padding(32)
+            .background(glassMaterial)
         }
+        .opacity(isLoaded ? 1 : 0)
+        .offset(y: isLoaded ? 0 : 30)
+        .animation(.spring(response: 0.6).delay(0.4), value: isLoaded)
     }
     
-    // MARK: - Top Apps Section
-    
+    /**
+     * A vertical list of the most utilized applications for today.
+     */
     private var topAppsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Top Apps")
-                    .font(.system(size: 18, weight: .semibold))
-                
-                Spacer()
-                
-                Text("\(topApps.count) of \(applications.count)")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(Color.secondary.opacity(0.08))
-                    )
-            }
+        VStack(alignment: .leading, spacing: 20) {
+            Text("TOP UTILIZATION")
+                .font(.system(size: 11, weight: .bold))
+                .tracking(1.5)
+                .foregroundColor(secondaryText)
             
-            VStack(spacing: 8) {
+            VStack(spacing: 12) {
                 ForEach(Array(topApps.enumerated()), id: \.element.id) { index, app in
-                    let todayTime = UsageDatabase.shared.getTodayTime(for: app.id.uuidString)
-                    let percentage = totalTime > 0 ? todayTime / totalTime : 0
+                    let appTime = UsageDatabase.shared.getTodayTime(for: app.id.uuidString)
+                    let percentage = totalTime > 0 ? appTime / totalTime : 0
                     
                     TodayAppRow(
                         app: app,
-                        todayTime: todayTime,
+                        todayTime: appTime,
                         percentage: percentage,
                         rank: index + 1
                     )
-                    .opacity(isLoaded ? 1 : 0)
-                    .offset(x: isLoaded ? 0 : -20)
-                    .animation(.easeOut(duration: 0.5).delay(0.5 + Double(index) * 0.08), value: isLoaded)
                 }
             }
         }
+        .opacity(isLoaded ? 1 : 0)
+        .offset(y: isLoaded ? 0 : 30)
+        .animation(.spring(response: 0.6).delay(0.5), value: isLoaded)
     }
     
-    // MARK: - Helper Functions
+    private var emptyStateView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "sun.max.fill")
+                .font(.system(size: 48))
+                .foregroundColor(accentColor.opacity(0.2))
+            Text("No activity recorded yet today.")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(secondaryText)
+        }
+        .padding(.vertical, 100)
+        .frame(maxWidth: .infinity)
+    }
     
+    // MARK: - Helpers
+    
+    private var glassMaterial: some View {
+        RoundedRectangle(cornerRadius: 32, style: .continuous)
+            .fill(Color.white.opacity(0.6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .stroke(Color.white.opacity(0.5), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.03), radius: 20, x: 0, y: 10)
+    }
+    
+    /**
+     * Fetches today's applications and pre-calculates the totals and breakdowns.
+     */
     private func loadData() {
-        applications = UsageDatabase.shared.getAllApplications()
-            .sorted {
-                UsageDatabase.shared.getTodayTime(for: $0.id.uuidString) >
-                UsageDatabase.shared.getTodayTime(for: $1.id.uuidString)
-            }
+        let allApps = UsageDatabase.shared.getAllApplications()
+        
+        // Filter out apps not used today and sort by duration
+        applications = allApps.filter { UsageDatabase.shared.getTodayTime(for: $0.id.uuidString) > 0 }
+        .sorted {
+            UsageDatabase.shared.getTodayTime(for: $0.id.uuidString) >
+            UsageDatabase.shared.getTodayTime(for: $1.id.uuidString)
+        }
+        
         totalTime = applications.reduce(0) {
             $0 + UsageDatabase.shared.getTodayTime(for: $1.id.uuidString)
         }
         
-        // Calculate category breakdown
+        // Note: Currently returns cumulative visits, could be optimized for "today-only" visits
+        totalVisits = applications.reduce(0) {
+            $0 + $1.visitCount
+        }
+        
+        // Calculate category percentage distribution
         let categories = UsageDatabase.shared.getAllCategories()
         categoryBreakdown = categories.compactMap { category in
-            let categoryApps = applications.filter { $0.categoryId == category.id.uuidString }
+            let categoryApps = applications.filter { $0.categoryId == category.id.uuidString.lowercased() }
             let categoryTime = categoryApps.reduce(0) {
                 $0 + UsageDatabase.shared.getTodayTime(for: $1.id.uuidString)
             }
@@ -373,11 +300,6 @@ struct TodayView: View {
         return hours > 0 ? "\(hours)h \(minutes)m" : "\(minutes)m"
     }
     
-    private func dailyGoalProgress() -> Double {
-        let goal: TimeInterval = 8 * 3600 // 8 hours default goal
-        return min(totalTime / goal, 1.0)
-    }
-    
     private func categoryStartAngle(for index: Int) -> CGFloat {
         let total = categoryBreakdown.prefix(5).reduce(0) { $0 + $1.time }
         var start: CGFloat = 0
@@ -394,5 +316,56 @@ struct TodayView: View {
             end += CGFloat(categoryBreakdown[i].time / total)
         }
         return end
+    }
+}
+
+/**
+ * SummaryMetricCard - A high-polish metric component for the summary grid.
+ * 
+ * Features a large value display and a standardized layout for cross-view consistency.
+ */
+struct SummaryMetricCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    let color: Color
+    let delay: Double
+    let isLoaded: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                ZStack {
+                    Circle()
+                        .fill(color.opacity(0.12))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(color)
+                }
+                Spacer()
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(value)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                
+                Text(title.uppercased())
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundColor(.secondary)
+                    .tracking(1)
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.03), radius: 15, x: 0, y: 5)
+        )
+        .opacity(isLoaded ? 1 : 0)
+        .offset(y: isLoaded ? 0 : 20)
+        .animation(.spring(response: 0.6).delay(delay), value: isLoaded)
     }
 }
