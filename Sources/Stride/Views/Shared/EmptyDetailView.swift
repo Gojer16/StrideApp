@@ -1,25 +1,40 @@
 import SwiftUI
 
 /**
- Empty state view displayed when no app is selected.
- 
- Shows a helpful message prompting the user to select an app from the list.
+ * EmptyDetailView - A reusable placeholder view for empty states in detail sidebars.
+ * 
+ * Aesthetic: Warm Paper/Editorial Light
+ * - Soft secondary typography
+ * - Large, semi-transparent icons
+ * - Clean background integration
  */
 struct EmptyDetailView: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+    
+    init(title: String = "Select an Item", 
+         subtitle: String = "Choose an item from the list to view details.", 
+         icon: String = "arrow.left.circle") {
+        self.title = title
+        self.subtitle = subtitle
+        self.icon = icon
+    }
+    
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
             
-            Image(systemName: "arrow.left.circle")
+            Image(systemName: icon)
                 .font(.system(size: 64))
                 .foregroundStyle(.secondary.opacity(0.4))
             
             VStack(spacing: 8) {
-                Text("Select an App")
+                Text(title)
                     .font(.title3.bold())
                     .foregroundStyle(.secondary)
                 
-                Text("Choose an app from the list to view detailed statistics")
+                Text(subtitle)
                     .font(.subheadline)
                     .foregroundStyle(.secondary.opacity(0.7))
                     .multilineTextAlignment(.center)
