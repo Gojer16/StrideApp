@@ -15,6 +15,8 @@ import SwiftUI
  Users can create custom categories as needed.
  */
 struct Category: Codable, Identifiable, Hashable {
+    static let uncategorizedId = "00000000-0000-0000-0000-000000000008"
+    
     let id: UUID
     var name: String
     var icon: String  // SF Symbol name
@@ -33,14 +35,14 @@ struct Category: Codable, Identifiable, Hashable {
     
     /// Predefined categories available on first launch
     static let defaultCategories: [Category] = [
-        Category(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, name: "Work", icon: "briefcase.fill", color: "#FF6B6B", order: 0, isDefault: true),
-        Category(id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!, name: "Entertainment", icon: "play.circle.fill", color: "#9B59B6", order: 1, isDefault: true),
-        Category(id: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!, name: "Social", icon: "person.2.fill", color: "#3498DB", order: 2, isDefault: true),
-        Category(id: UUID(uuidString: "00000000-0000-0000-0000-000000000004")!, name: "Productivity", icon: "checkmark.circle.fill", color: "#27AE60", order: 3, isDefault: true),
-        Category(id: UUID(uuidString: "00000000-0000-0000-0000-000000000005")!, name: "Development", icon: "chevron.left.forwardslash.chevron.right", color: "#E67E22", order: 4, isDefault: true),
-        Category(id: UUID(uuidString: "00000000-0000-0000-0000-000000000006")!, name: "Communication", icon: "message.fill", color: "#1ABC9C", order: 5, isDefault: true),
-        Category(id: UUID(uuidString: "00000000-0000-0000-0000-000000000007")!, name: "Utilities", icon: "wrench.fill", color: "#95A5A6", order: 6, isDefault: true),
-        Category(id: UUID(uuidString: "00000000-0000-0000-0000-000000000008")!, name: "Uncategorized", icon: "questionmark.circle.fill", color: "#7F8C8D", order: 999, isDefault: true)
+        Category(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, name: "Work", icon: "briefcase.fill", color: "#C75B39", order: 0, isDefault: true),
+        Category(id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!, name: "Entertainment", icon: "play.circle.fill", color: "#7A6B8A", order: 1, isDefault: true),
+        Category(id: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!, name: "Social", icon: "person.2.fill", color: "#5B7C8C", order: 2, isDefault: true),
+        Category(id: UUID(uuidString: "00000000-0000-0000-0000-000000000004")!, name: "Productivity", icon: "checkmark.circle.fill", color: "#4A7C59", order: 3, isDefault: true),
+        Category(id: UUID(uuidString: "00000000-0000-0000-0000-000000000005")!, name: "Development", icon: "chevron.left.forwardslash.chevron.right", color: "#B8834C", order: 4, isDefault: true),
+        Category(id: UUID(uuidString: "00000000-0000-0000-0000-000000000006")!, name: "Communication", icon: "message.fill", color: "#5A8C7C", order: 5, isDefault: true),
+        Category(id: UUID(uuidString: "00000000-0000-0000-0000-000000000007")!, name: "Utilities", icon: "wrench.fill", color: "#7A8C8C", order: 6, isDefault: true),
+        Category(id: UUID(uuidString: uncategorizedId)!, name: "Uncategorized", icon: "questionmark.circle.fill", color: "#6B7B7B", order: 999, isDefault: true)
     ]
 }
 
@@ -125,7 +127,7 @@ struct AppUsage: Codable, Identifiable, Hashable {
     init(name: String, categoryId: String = "") {
         self.id = UUID()
         self.name = name
-        self.categoryId = categoryId.isEmpty ? "uncategorized" : categoryId
+        self.categoryId = categoryId.isEmpty ? Category.uncategorizedId : categoryId
         self.firstSeen = Date()
         self.lastSeen = Date()
         self.totalTimeSpent = 0
@@ -384,15 +386,21 @@ class UsageDatabase {
         if !hasCategoryIdColumn {
             if hasOldCategoryColumn {
                 let migrateSQL = """
-                    ALTER TABLE applications ADD COLUMN category_id TEXT DEFAULT 'uncategorized';
-                    UPDATE applications SET category_id = LOWER(REPLACE(category, ' ', '_')) WHERE category_id = 'uncategorized';
+                    ALTER TABLE applications ADD COLUMN category_id TEXT DEFAULT '\(Category.uncategorizedId.lowercased())';
+                    UPDATE applications SET category_id = LOWER(REPLACE(category, ' ', '_')) WHERE category_id = '\(Category.uncategorizedId.lowercased())';
                 """
                 execute(migrateSQL)
             } else {
-                let addColumnSQL = "ALTER TABLE applications ADD COLUMN category_id TEXT DEFAULT 'uncategorized';"
+                let addColumnSQL = "ALTER TABLE applications ADD COLUMN category_id TEXT DEFAULT '\(Category.uncategorizedId.lowercased())';"
                 execute(addColumnSQL)
             }
         }
+        
+        // Ensure all IDs are lowercase and literal "uncategorized" is converted
+        let fixCaseSQL = "UPDATE applications SET category_id = LOWER(category_id);"
+        execute(fixCaseSQL)
+        let fixUncategorizedSQL = "UPDATE applications SET category_id = '\(Category.uncategorizedId.lowercased())' WHERE category_id = 'uncategorized';"
+        execute(fixUncategorizedSQL)
     }
     
     private func initializeDefaultCategories() {
@@ -423,7 +431,7 @@ class UsageDatabase {
         
         var statement: OpaquePointer?
         if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
-            sqlite3_bind_text(statement, 1, (category.id.uuidString as NSString).utf8String, -1, nil)
+            sqlite3_bind_text(statement, 1, (category.id.uuidString.lowercased() as NSString).utf8String, -1, nil)
             sqlite3_bind_text(statement, 2, (category.name as NSString).utf8String, -1, nil)
             sqlite3_bind_text(statement, 3, (category.icon as NSString).utf8String, -1, nil)
             sqlite3_bind_text(statement, 4, (category.color as NSString).utf8String, -1, nil)
@@ -448,7 +456,7 @@ class UsageDatabase {
             sqlite3_bind_text(statement, 2, (category.icon as NSString).utf8String, -1, nil)
             sqlite3_bind_text(statement, 3, (category.color as NSString).utf8String, -1, nil)
             sqlite3_bind_int(statement, 4, Int32(category.order))
-            sqlite3_bind_text(statement, 5, (category.id.uuidString as NSString).utf8String, -1, nil)
+            sqlite3_bind_text(statement, 5, (category.id.uuidString.lowercased() as NSString).utf8String, -1, nil)
             
             sqlite3_step(statement)
         }
@@ -458,17 +466,17 @@ class UsageDatabase {
     func deleteCategory(id: String) {
         guard let category = getCategory(byId: id), !category.isDefault else { return }
         
-        let updateAppsSQL = "UPDATE applications SET category_id = 'uncategorized' WHERE category_id = ?;"
+        let updateAppsSQL = "UPDATE applications SET category_id = '\(Category.uncategorizedId.lowercased())' WHERE category_id = ?;"
         var statement: OpaquePointer?
         if sqlite3_prepare_v2(db, updateAppsSQL, -1, &statement, nil) == SQLITE_OK {
-            sqlite3_bind_text(statement, 1, (id as NSString).utf8String, -1, nil)
+            sqlite3_bind_text(statement, 1, (id.lowercased() as NSString).utf8String, -1, nil)
             sqlite3_step(statement)
         }
         sqlite3_finalize(statement)
         
         let deleteSQL = "DELETE FROM categories WHERE id = ?;"
         if sqlite3_prepare_v2(db, deleteSQL, -1, &statement, nil) == SQLITE_OK {
-            sqlite3_bind_text(statement, 1, (id as NSString).utf8String, -1, nil)
+            sqlite3_bind_text(statement, 1, (id.lowercased() as NSString).utf8String, -1, nil)
             sqlite3_step(statement)
         }
         sqlite3_finalize(statement)
@@ -505,7 +513,7 @@ class UsageDatabase {
             var result: Category? = nil
             
             if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
-                sqlite3_bind_text(statement, 1, (id as NSString).utf8String, -1, nil)
+                sqlite3_bind_text(statement, 1, (id.lowercased() as NSString).utf8String, -1, nil)
                 
                 if sqlite3_step(statement) == SQLITE_ROW {
                     result = extractCategory(from: statement!)
@@ -524,7 +532,7 @@ class UsageDatabase {
             return nil
         }
         
-        let id = UUID(uuidString: String(cString: idString))!
+        let id = UUID(uuidString: String(cString: idString).lowercased())!
         let name = String(cString: nameString)
         let icon = String(cString: iconString)
         let color = String(cString: colorString)
@@ -599,50 +607,54 @@ class UsageDatabase {
         if name.contains("xcode") || name.contains("code") || name.contains("terminal") || 
            name.contains("github") || name.contains("cursor") || name.contains("sublime") ||
            name.contains("jetbrains") || name.contains("visual studio") {
-            return categories.first { $0.name == "Development" }?.id.uuidString ?? "uncategorized"
+            return categories.first { $0.name == "Development" }?.id.uuidString ?? Category.uncategorizedId
         }
         
         if name.contains("slack") || name.contains("discord") || name.contains("teams") || 
            name.contains("zoom") || name.contains("skype") || name.contains("telegram") ||
            name.contains("whatsapp") {
-            return categories.first { $0.name == "Communication" }?.id.uuidString ?? "uncategorized"
+            return categories.first { $0.name == "Communication" }?.id.uuidString ?? Category.uncategorizedId
         }
         
         if name.contains("safari") || name.contains("chrome") || name.contains("firefox") || 
            name.contains("youtube") || name.contains("netflix") || name.contains("spotify") ||
            name.contains("steam") {
-            return categories.first { $0.name == "Entertainment" }?.id.uuidString ?? "uncategorized"
+            return categories.first { $0.name == "Entertainment" }?.id.uuidString ?? Category.uncategorizedId
         }
         
         if name.contains("twitter") || name.contains("instagram") || name.contains("facebook") || 
            name.contains("messenger") || name.contains("tiktok") || name.contains("reddit") ||
            name.contains("linkedin") {
-            return categories.first { $0.name == "Social" }?.id.uuidString ?? "uncategorized"
+            return categories.first { $0.name == "Social" }?.id.uuidString ?? Category.uncategorizedId
         }
         
         if name.contains("notes") || name.contains("calendar") || name.contains("mail") || 
            name.contains("outlook") || name.contains("notion") || name.contains("todo") {
-            return categories.first { $0.name == "Productivity" }?.id.uuidString ?? "uncategorized"
+            return categories.first { $0.name == "Productivity" }?.id.uuidString ?? Category.uncategorizedId
         }
         
         if name.contains("excel") || name.contains("word") || name.contains("powerpoint") || 
            name.contains("keynote") || name.contains("numbers") || name.contains("pages") {
-            return categories.first { $0.name == "Work" }?.id.uuidString ?? "uncategorized"
+            return categories.first { $0.name == "Work" }?.id.uuidString ?? Category.uncategorizedId
         }
         
-        return "uncategorized"
+        return Category.uncategorizedId
     }
     
     func updateAppCategory(appId: String, categoryId: String) {
         let sql = "UPDATE applications SET category_id = ? WHERE id = ?;"
-        var statement: OpaquePointer?
         
-        if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
-            sqlite3_bind_text(statement, 1, (categoryId as NSString).utf8String, -1, nil)
-            sqlite3_bind_text(statement, 2, (appId as NSString).utf8String, -1, nil)
-            sqlite3_step(statement)
+        dbQueue.sync { [weak self] in
+            guard let self = self else { return }
+            var statement: OpaquePointer?
+            
+            if sqlite3_prepare_v2(self.db, sql, -1, &statement, nil) == SQLITE_OK {
+                sqlite3_bind_text(statement, 1, (categoryId.lowercased() as NSString).utf8String, -1, nil)
+                sqlite3_bind_text(statement, 2, (appId as NSString).utf8String, -1, nil)
+                sqlite3_step(statement)
+            }
+            sqlite3_finalize(statement)
         }
-        sqlite3_finalize(statement)
     }
     
     func getApplication(name: String) -> AppUsage? {
@@ -743,7 +755,7 @@ class UsageDatabase {
             var statement: OpaquePointer?
             
             if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
-                sqlite3_bind_text(statement, 1, (categoryId as NSString).utf8String, -1, nil)
+                sqlite3_bind_text(statement, 1, (categoryId.lowercased() as NSString).utf8String, -1, nil)
                 while sqlite3_step(statement) == SQLITE_ROW {
                     if let app = extractAppUsage(from: statement!) {
                         apps.append(app)
@@ -778,9 +790,9 @@ class UsageDatabase {
         let name = String(cString: nameString)
         let categoryId: String
         if let categoryIdText = sqlite3_column_text(statement, 2) {
-            categoryId = String(cString: categoryIdText)
+            categoryId = String(cString: categoryIdText).lowercased()
         } else {
-            categoryId = "uncategorized"
+            categoryId = Category.uncategorizedId.lowercased()
         }
         let firstSeen = Date(timeIntervalSince1970: sqlite3_column_double(statement, 3))
         let lastSeen = Date(timeIntervalSince1970: sqlite3_column_double(statement, 4))
