@@ -12,7 +12,7 @@ struct MainWindowView: View {
     @State private var selectedSidebarItem = 0
     
     let sidebarItems = [
-        ("Now", "clock.fill", "Current session"),
+        ("Live", "bolt.fill", "Current session"),
         ("All Apps", "app.fill", "Browse all apps"),
         ("Categories", "chart.pie.fill", "Manage categories"),
         ("Weekly Log", "clock.badge.checkmark", "Track pomodoros"),
