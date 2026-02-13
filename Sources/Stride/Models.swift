@@ -711,6 +711,28 @@ class UsageDatabase {
         }
     }
     
+    func getRecentApplications(limit: Int) -> [AppUsage] {
+        guard db != nil else { return [] }
+        
+        let sql = "SELECT * FROM applications ORDER BY last_seen DESC LIMIT ?;"
+        
+        return dbQueue.sync {
+            var apps: [AppUsage] = []
+            var statement: OpaquePointer?
+            
+            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+                sqlite3_bind_int(statement, 1, Int32(limit))
+                while sqlite3_step(statement) == SQLITE_ROW {
+                    if let app = extractAppUsage(from: statement!) {
+                        apps.append(app)
+                    }
+                }
+            }
+            sqlite3_finalize(statement)
+            return apps
+        }
+    }
+    
     func getApplicationsByCategory(categoryId: String) -> [AppUsage] {
         guard db != nil else { return [] }
         
