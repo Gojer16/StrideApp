@@ -11,6 +11,7 @@ import SwiftUI
  */
 struct AppCategoryPickerView: View {
     let app: AppUsage
+    var onComplete: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var categories: [Category] = []
     @State private var isAnimating = false
@@ -159,6 +160,8 @@ struct AppCategoryPickerView: View {
         }
         
         UsageDatabase.shared.updateAppCategory(appId: app.id.uuidString, categoryId: category.id.uuidString)
+        
+        onComplete?()
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             dismiss()
