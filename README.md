@@ -23,13 +23,11 @@ A macOS application that tracks your active application and window usage time. S
   - Calendar and list views
   - Progress notes for each session
   - Category-based color coding
-- **Habit Tracker**: Build and maintain daily habits
-  - Three tracking types: Checkbox, Timer, Counter
-  - Streak tracking (current and longest)
-  - GitHub-style contribution heatmap
-  - Daily reminders with notifications
-  - Detailed statistics and completion rates
-  - Sample habits included for new users
+- **Habit Tracker**: High-speed "Tactile Toggle" achievement grid
+  - Left-click grid cells to instantly increment sessions (5-level intensity)
+  - Bento-style dashboard for overall streaks and success rates
+  - GitHub-style contribution heatmap (90-day history)
+  - Daily reminders and detailed statistics for each habit
 
 ### Categories & Organization
 - 8 default categories: Work, Entertainment, Social, Productivity, Development, Communication, Utilities, Uncategorized
