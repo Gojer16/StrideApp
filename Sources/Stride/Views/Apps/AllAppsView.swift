@@ -23,6 +23,7 @@ struct AllAppsView: View {
     @State private var selectedCategory: Category?
     @State private var categories: [Category] = []
     @State private var isAnimating = false
+    @State private var selectedApp: AppUsage?
     
     private let backgroundColor = Color(red: 0.98, green: 0.973, blue: 0.957)
     private let cardBackground = Color.white
@@ -60,6 +61,35 @@ struct AllAppsView: View {
     }
     
     var body: some View {
+        NavigationSplitView {
+            mainContent
+        } detail: {
+            if let app = selectedApp {
+                AppDetailSidebar(app: app, selectedApp: $selectedApp, onCategoryChanged: {
+                    loadData()
+                })
+                .id(app.id) // Force redraw when selection changes
+            } else {
+                EmptyDetailView(
+                    title: "Select an App",
+                    subtitle: "Choose an application from the list to see detailed usage statistics and manage its category.",
+                    icon: "app.fill"
+                )
+            }
+        }
+        .onAppear {
+            loadData()
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                isAnimating = true
+            }
+        }
+        .onChange(of: selectedApp) {
+            // Refresh data when sidebar might have changed something (like category)
+            loadData()
+        }
+    }
+    
+    private var mainContent: some View {
         ZStack {
             backgroundColor
                 .ignoresSafeArea()
@@ -76,12 +106,6 @@ struct AllAppsView: View {
                 } else {
                     appsGridView
                 }
-            }
-        }
-        .onAppear {
-            loadData()
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                isAnimating = true
             }
         }
     }
@@ -238,6 +262,14 @@ struct AllAppsView: View {
             ) {
                 ForEach(Array(filteredApps.enumerated()), id: \.element.id) { index, app in
                     AppGridCard(app: app)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(accentColor, lineWidth: selectedApp?.id == app.id ? 2 : 0)
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            selectedApp = app
+                        }
                         .opacity(isAnimating ? 1 : 0)
                         .offset(y: isAnimating ? 0 : 20)
                         .animation(
