@@ -1,271 +1,338 @@
 import SwiftUI
 
 /**
- * CurrentSessionView - Displays the currently active app and session information
- *
- * Aesthetic: Warm Paper/Editorial Light
- * - Warm cream/paper backgrounds (#F5F1EB, #FAF8F5)
- * - Soft charcoal text (#2C2C2C, #3D3D3D)
- * - Terracotta/ochre accents (#C75B39, #D4A574)
- * - Soft shadows and depth
- * - Clean editorial typography
+ * CurrentSessionView - The "Live" Tab
+ * 
+ * An atmospheric, real-time dashboard that serves as the heart of the Stride experience.
+ * 
+ * **Design Philosophy (Ambient Status):**
+ * Instead of static data boxes, this view uses an "Ambient Status" approach where the 
+ * entire UI breathes and reacts to the user's current activity. The background color
+ * cross-fades based on the active app's category, creating a subconscious cue for 
+ * productivity vs. leisure.
+ * 
+ * **Key Components:**
+ * 1. `ambientBackground`: A Canvas-based mesh gradient that provides atmospheric feedback.
+ * 2. `appBrandingSection`: Magazine-style typography emphasizing the active context.
+ * 3. `heroTimerSection`: A minimalist, high-impact session clock.
+ * 4. `Glass Cards`: Secondary metrics housed in blurred material containers.
  */
 struct CurrentSessionView: View {
     @EnvironmentObject private var appState: AppState
-    @State private var isPulsing = false
+    
+    /// Controls the entry animations when the tab appears
     @State private var isAnimating = false
+    
+    /// Drives the subtle rotation of the background glow elements
     @State private var glowRotation: Double = 0
     
-    private let backgroundColor = Color(red: 0.98, green: 0.973, blue: 0.957)
-    private let cardBackground = Color.white
-    private let accentColor = Color(red: 0.78, green: 0.357, blue: 0.224)
-    private let textColor = Color(red: 0.173, green: 0.173, blue: 0.173)
-    private let secondaryText = Color(red: 0.38, green: 0.38, blue: 0.38)
+    // MARK: - Theme Constants
+    
+    /// Deep charcoal for primary reading (Editorial standard)
+    private let textColor = Color(red: 0.1, green: 0.1, blue: 0.1)
+    
+    /// Soft gray for secondary metadata
+    private let secondaryText = Color(red: 0.3, green: 0.3, blue: 0.3)
     
     var body: some View {
         ZStack {
-            backgroundColor
-                .ignoresSafeArea()
+            // Layer 0: The reactive atmospheric background
+            ambientBackground
             
             ScrollView {
-                VStack(spacing: 48) {
-                    Spacer()
-                        .frame(height: 20)
+                VStack(spacing: 60) {
+                    // Top margin for breathing room
+                    Spacer().frame(height: 40)
                     
-                    liveIndicator
+                    // Layer 1: Live Status Header
+                    HStack {
+                        Spacer()
+                        liveIndicator
+                    }
+                    .padding(.horizontal, 40)
                     
-                    appInfoSection
+                    // Layer 2: Central Focus (App Branding + Timer)
+                    VStack(spacing: 32) {
+                        appBrandingSection
+                        heroTimerSection
+                    }
                     
-                    timerSection
-                    
-                    statsSection
+                    // Layer 3: Contextual Info (Stats + Recent History)
+                    if isAnimating {
+                        HStack(spacing: 24) {
+                            statsGlassCard
+                            recentActivityGlassCard
+                        }
+                        .padding(.horizontal, 40)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                     
                     Spacer()
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.horizontal, 40)
             }
         }
         .onAppear {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.75)) {
+            // Trigger entry animations with a smooth spring
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.8)) {
                 isAnimating = true
             }
-            withAnimation(.linear(duration: 8).repeatForever(autoreverses: false)) {
+            // Start the slow atmospheric rotation
+            withAnimation(.linear(duration: 20).repeatForever(autoreverses: false)) {
                 glowRotation = 360
             }
-            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-                isPulsing.toggle()
-            }
         }
     }
     
-    // MARK: - Live Indicator
-    private var liveIndicator: some View {
-        HStack(spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(accentColor.opacity(0.15))
-                    .frame(width: 16, height: 16)
-                
-                Circle()
-                    .fill(accentColor)
-                    .frame(width: 8, height: 8)
-                    .opacity(isPulsing ? 1 : 0.4)
-                    .scaleEffect(isPulsing ? 1.1 : 0.9)
-            }
-            
-            Text("LIVE TRACKING")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundColor(secondaryText)
-                .tracking(2)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(
-            Capsule()
-                .fill(cardBackground)
-                .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
-        )
-        .overlay(
-            Capsule()
-                .strokeBorder(accentColor.opacity(0.25), lineWidth: 1)
-        )
-        .opacity(isAnimating ? 1 : 0)
-        .offset(y: isAnimating ? 0 : -20)
-        .animation(.spring(response: 0.5, dampingFraction: 0.7), value: isAnimating)
-    }
+    // MARK: - Subviews
     
-    // MARK: - App Info Section
-    private var appInfoSection: some View {
-        VStack(spacing: 24) {
-            ZStack {
-                // Rotating glow effect
-                Circle()
-                    .fill(
-                        AngularGradient(
-                            colors: [
-                                accentColor.opacity(0.2),
-                                accentColor.opacity(0.08),
-                                accentColor.opacity(0.04),
-                                accentColor.opacity(0.08),
-                                accentColor.opacity(0.2)
-                            ],
-                            center: .center
-                        )
-                    )
-                    .frame(width: 160, height: 160)
-                    .blur(radius: 20)
-                    .rotationEffect(.degrees(glowRotation))
-                
-                // Outer ring
-                Circle()
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                accentColor.opacity(0.4),
-                                accentColor.opacity(0.15)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 2
-                    )
-                    .frame(width: 140, height: 140)
-                
-                // Inner fill
-                Circle()
-                    .fill(cardBackground)
-                    .frame(width: 130, height: 130)
-                    .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
-                    .overlay(
-                        Circle()
-                            .strokeBorder(
-                                Color.black.opacity(0.08),
-                                lineWidth: 1
-                            )
-                    )
-                
-                // App icon
-                Image(systemName: "app.fill")
-                    .font(.system(size: 56, weight: .medium))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [accentColor, accentColor.opacity(0.75)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .symbolRenderingMode(.hierarchical)
-            }
-            .scaleEffect(isAnimating ? 1.0 : 0.8)
-            .opacity(isAnimating ? 1 : 0)
-            .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.1), value: isAnimating)
+    /**
+     * A dynamic mesh gradient background.
+     * 
+     * Uses SwiftUI Canvas for high-performance rendering of blurred shapes.
+     * The colors are bound to `appState.currentCategoryColor` with a 2-second
+     * interpolation for smooth transitions during app switches.
+     */
+    private var ambientBackground: some View {
+        ZStack {
+            // Solid base
+            Color.white.ignoresSafeArea()
             
-            VStack(spacing: 10) {
-                Text(appState.activeAppName)
-                    .font(.system(size: 36, weight: .bold, design: .default))
-                    .foregroundColor(textColor)
-                
-                if !appState.activeWindowTitle.isEmpty {
-                    Text(appState.activeWindowTitle)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(secondaryText)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
+            // The "Glow" shapes
+            Canvas { context, size in
+                context.addFilter(.blur(radius: 60))
+                context.drawLayer { ctx in
+                    // Two overlapping ellipses create the "mesh" effect
+                    let rect1 = CGRect(x: size.width * 0.2, y: size.height * 0.1, width: size.width * 0.6, height: size.height * 0.4)
+                    let rect2 = CGRect(x: size.width * 0.5, y: size.height * 0.5, width: size.width * 0.5, height: size.height * 0.4)
+                    
+                    ctx.fill(Path(ellipseIn: rect1), with: .color(appState.currentCategoryColor.opacity(0.15)))
+                    ctx.fill(Path(ellipseIn: rect2), with: .color(appState.currentCategoryColor.opacity(0.1)))
                 }
             }
-            .opacity(isAnimating ? 1 : 0)
-            .offset(y: isAnimating ? 0 : 20)
-            .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.2), value: isAnimating)
+            .ignoresSafeArea()
+            .animation(.easeInOut(duration: 2.0), value: appState.currentCategoryColor)
+            
+            // Softening layer to maintain text legibility
+            Color.white.opacity(0.4).ignoresSafeArea()
         }
     }
     
-    // MARK: - Timer Section
-    private var timerSection: some View {
-        ZStack {
-            // Background glow
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [
-                            accentColor.opacity(0.12),
-                            accentColor.opacity(0.04),
-                            Color.clear
-                        ],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 120
-                    )
-                )
-                .frame(width: 240, height: 240)
-            
-            // Outer track
-            Circle()
-                .stroke(Color.black.opacity(0.06), lineWidth: 12)
-                .frame(width: 240, height: 240)
-            
-            // Progress ring
-            Circle()
-                .trim(from: 0, to: min(CGFloat(appState.elapsedTime.truncatingRemainder(dividingBy: 3600)) / 3600, 1))
-                .stroke(
-                    AngularGradient(
-                        colors: [
-                            accentColor.opacity(0.9),
-                            accentColor,
-                            accentColor.opacity(0.9)
-                        ],
-                        center: .center,
-                        startAngle: .degrees(-90),
-                        endAngle: .degrees(270)
-                    ),
-                    style: StrokeStyle(lineWidth: 12, lineCap: .round)
-                )
-                .frame(width: 240, height: 240)
-                .rotationEffect(.degrees(-90))
-                .animation(.linear(duration: 1), value: appState.elapsedTime)
-                .shadow(color: accentColor.opacity(0.25), radius: 8, x: 0, y: 0)
-            
-            // Timer content
-            VStack(spacing: 10) {
-                Text(appState.formattedTime)
-                    .font(.system(size: 64, weight: .light, design: .rounded))
-                    .foregroundColor(textColor)
-                    .monospacedDigit()
+    /**
+     * Magazine-style app title and window context.
+     * 
+     * Uses a Serif font for the primary name to evoke a sense of "craft" and "editorial quality."
+     */
+    private var appBrandingSection: some View {
+        VStack(spacing: 16) {
+            // Category Badge
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(appState.currentCategoryColor)
+                    .frame(width: 8, height: 8)
+                    .shadow(color: appState.currentCategoryColor.opacity(0.5), radius: 4)
                 
-                Text("This Session")
-                    .font(.system(size: 13, weight: .medium))
+                Text(appState.activeAppName.uppercased())
+                    .font(.system(size: 12, weight: .black))
+                    .tracking(3)
                     .foregroundColor(secondaryText)
-                    .tracking(0.5)
+            }
+            
+            // App Name (Editorial Style)
+            Text(appState.activeAppName)
+                .font(.system(size: 52, weight: .bold, design: .serif))
+                .foregroundColor(textColor)
+                .contentTransition(.interpolate)
+            
+            // Active Window (Subtle Context)
+            if !appState.activeWindowTitle.isEmpty {
+                Text(appState.activeWindowTitle)
+                    .font(.system(size: 16, weight: .medium, design: .default))
+                    .italic()
+                    .foregroundColor(secondaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 60)
+                    .lineLimit(2)
             }
         }
-        .scaleEffect(isAnimating ? 1.0 : 0.9)
         .opacity(isAnimating ? 1 : 0)
-        .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.3), value: isAnimating)
+        .offset(y: isAnimating ? 0 : 20)
     }
     
-    // MARK: - Stats Section
-    private var statsSection: some View {
-        HStack(spacing: 20) {
-            QuickStatCard(
-                icon: "eye.fill",
-                value: "\(appState.totalVisitsToday)",
-                label: "Visits Today",
-                color: accentColor
-            )
-            .opacity(isAnimating ? 1 : 0)
-            .offset(y: isAnimating ? 0 : 30)
-            .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.4), value: isAnimating)
+    /**
+     * Large, readable timer.
+     * 
+     * Uses a thin rounded font for modern precision without feeling clinical.
+     */
+    private var heroTimerSection: some View {
+        VStack(spacing: 8) {
+            Text(appState.formattedTime)
+                .font(.system(size: 100, weight: .thin, design: .rounded))
+                .foregroundColor(textColor)
+                .monospacedDigit()
+                .shadow(color: appState.currentCategoryColor.opacity(0.1), radius: 20, x: 0, y: 10)
             
-            QuickStatCard(
-                icon: "hourglass",
-                value: appState.totalTimeToday.formatted(),
-                label: "Total Time",
-                color: accentColor.opacity(0.85)
-            )
-            .opacity(isAnimating ? 1 : 0)
-            .offset(y: isAnimating ? 0 : 30)
-            .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.5), value: isAnimating)
+            Text("SESSION ELAPSED")
+                .font(.system(size: 10, weight: .bold))
+                .tracking(4)
+                .foregroundColor(secondaryText.opacity(0.6))
         }
+        .scaleEffect(isAnimating ? 1 : 0.95)
+        .opacity(isAnimating ? 1 : 0)
+    }
+    
+    /**
+     * High-level daily metrics in a glass container.
+     */
+    private var statsGlassCard: some View {
+        VStack(spacing: 20) {
+            statRow(icon: "eye.fill", label: "Visits Today", value: "\(appState.totalVisitsToday)")
+            Divider().opacity(0.5)
+            statRow(icon: "hourglass", label: "Total Time", value: appState.totalTimeToday.formatted())
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .background(glassMaterial)
+    }
+    
+    /**
+     * Real-time history log in a glass container.
+     */
+    private var recentActivityGlassCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("RECENT CONTEXT")
+                .font(.system(size: 10, weight: .bold))
+                .tracking(2)
+                .foregroundColor(secondaryText.opacity(0.7))
+            
+            VStack(spacing: 12) {
+                // We filter the current app to avoid redundancy
+                let displayApps = appState.recentApps
+                    .filter { $0.name != appState.activeAppName }
+                    .prefix(3)
+                
+                if displayApps.isEmpty {
+                    Text("No recent context")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                } else {
+                    ForEach(displayApps) { app in
+                        HStack {
+                            Image(systemName: guessIcon(for: app.name))
+                                .font(.system(size: 12))
+                                .foregroundColor(appState.currentCategoryColor)
+                                .frame(width: 24, height: 24)
+                                .background(appState.currentCategoryColor.opacity(0.1))
+                                .clipShape(Circle())
+                            
+                            Text(app.name)
+                                .font(.system(size: 13, weight: .semibold))
+                            
+                            Spacer()
+                            
+                            Text(app.totalTimeSpent.formatted())
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .background(glassMaterial)
+    }
+    
+    /**
+     * The pulsing live dot.
+     */
+    private var liveIndicator: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(appState.currentCategoryColor)
+                .frame(width: 6, height: 6)
+            
+            Text("LIVE")
+                .font(.system(size: 10, weight: .black))
+                .tracking(2)
+                .foregroundColor(secondaryText)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(glassMaterial)
+    }
+    
+    // MARK: - Styling Components
+    
+    /**
+     * A reusable "Glassmorphism" material style.
+     * Uses native macOS blurring (NSVisualEffectView) behind a tinted white layer.
+     */
+    private var glassMaterial: some View {
+        RoundedRectangle(cornerRadius: 32, style: .continuous)
+            .fill(.white.opacity(0.4))
+            .background(
+                BlurView(style: .hudWindow)
+                    .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .stroke(.white.opacity(0.5), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.03), radius: 20, x: 0, y: 10)
+    }
+    
+    /**
+     * Standardized row for key-value statistics.
+     */
+    private func statRow(icon: String, label: String, value: String) -> some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 18))
+                .foregroundColor(appState.currentCategoryColor)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(secondaryText)
+                Text(value)
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundColor(textColor)
+            }
+            Spacer()
+        }
+    }
+    
+    /**
+     * Logic for mapping common app names to SF Symbols.
+     */
+    private func guessIcon(for appName: String) -> String {
+        let name = appName.lowercased()
+        if name.contains("xcode") || name.contains("code") || name.contains("terminal") { return "hammer.fill" }
+        if name.contains("safari") || name.contains("chrome") || name.contains("firefox") { return "safari.fill" }
+        if name.contains("slack") || name.contains("discord") || name.contains("message") { return "message.fill" }
+        return "app.fill"
+    }
+}
+
+/**
+ * BlurView - Bridge for NSVisualEffectView to provide native macOS blurring.
+ * 
+ * Necessary because SwiftUI's .background(.ultraThinMaterial) behaves
+ * differently on macOS compared to iOS.
+ */
+struct BlurView: NSViewRepresentable {
+    let style: NSVisualEffectView.Material
+    
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = style
+        view.blendingMode = .withinWindow
+        view.state = .active
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = style
     }
 }
