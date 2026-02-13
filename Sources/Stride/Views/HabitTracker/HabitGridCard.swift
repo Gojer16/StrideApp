@@ -1,16 +1,9 @@
 import SwiftUI
 
 /**
- * HabitGridCard - Card displaying a single habit with GitHub-style contribution grid
- *
- * Shows:
- * - Habit icon, name, and color
- * - Contribution grid (90 days)
- * - Streak counter
- * - Completion stats (completed/total, percentage)
- * - Best streak ever
- * - Legend for intensity levels
- * - Quick actions (add today, view details)
+ * HabitGridCard - A premium widget displaying habit consistency.
+ * 
+ * **Aesthetic: Warm Paper Pro**
  */
 struct HabitGridCard: View {
     let habit: Habit
@@ -25,10 +18,10 @@ struct HabitGridCard: View {
     
     @State private var isHovered = false
     
-    // Design System - Dark Forest Theme
-    private let forestCard = Color(hex: "#1A2820")
-    private let forestTextPrimary = Color(hex: "#F5F5F0")
-    private let forestTextSecondary = Color(hex: "#9A9A9A")
+    // Design System - Warm Paper
+    private let cardBackground = Color.white
+    private let textColor = Color(red: 0.1, green: 0.1, blue: 0.1)
+    private let secondaryText = Color(red: 0.4, green: 0.4, blue: 0.4)
     private let brandGold = Color(hex: "#D4A853")
     private let accentColor: Color
     
@@ -43,193 +36,135 @@ struct HabitGridCard: View {
         self.onDayLongPress = onDayLongPress
         self.onAddToday = onAddToday
         self.onViewDetails = onViewDetails
-        self.accentColor = Color(hex: habit.color)  // Habit's brand color
+        self.accentColor = Color(hex: habit.color)
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Header
+        VStack(alignment: .leading, spacing: 20) {
+            // MARK: 1. Header & Current Streak
             headerSection
             
-            // Stats row
-            statsSection
-            
-            // Contribution grid
+            // MARK: 2. Main Visualization
             ContributionGrid(
                 habit: habit,
                 entries: entries,
                 onDayTap: onDayTap,
                 onDayLongPress: onDayLongPress
             )
+            .padding(.vertical, 4)
             
-            // Legend and actions
-            footerSection
+            // MARK: 3. Key Success Metrics
+            HStack(spacing: 24) {
+                statsSection
+                Spacer()
+                footerActions
+            }
         }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(forestCard)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(isHovered ? accentColor.opacity(0.3) : Color.white.opacity(0.05), lineWidth: 1)
-                )
+        .padding(24)
+        .background(cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(isHovered ? accentColor.opacity(0.3) : Color.black.opacity(0.05), lineWidth: 1)
         )
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isHovered = hovering
+        .shadow(color: .black.opacity(isHovered ? 0.06 : 0.03), radius: 20, x: 0, y: 10)
+        .scaleEffect(isHovered ? 1.01 : 1.0)
+        .onHover { h in
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                isHovered = h
             }
         }
     }
     
-    // MARK: - Header Section
     private var headerSection: some View {
-        HStack {
-            // Icon and name
-            HStack(spacing: 12) {
+        HStack(alignment: .center) {
+            HStack(spacing: 16) {
+                // Brand Icon
                 ZStack {
                     Circle()
-                        .fill(accentColor.opacity(0.15))
-                        .frame(width: 44, height: 44)
+                        .fill(accentColor.opacity(0.12))
+                        .frame(width: 48, height: 48)
                     
                     Image(systemName: habit.icon)
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(.system(size: 20, weight: .bold))
                         .foregroundColor(accentColor)
                 }
                 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(habit.name)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(forestTextPrimary)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(textColor)
 
-                    Text(habit.formattedTarget)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(forestTextSecondary)
+                    Text(habit.formattedTarget.uppercased())
+                        .font(.system(size: 9, weight: .black))
+                        .foregroundColor(secondaryText)
+                        .tracking(1)
                 }
             }
 
             Spacer()
 
-            // Streak badge
+            // Streak Pill
             HStack(spacing: 6) {
-                Image(systemName: streak.currentStreak > 0 ? "flame.fill" : "flame")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(streak.currentStreak > 0 ? brandGold : Color(hex: "#666666"))
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(streak.currentStreak > 0 ? brandGold : secondaryText.opacity(0.3))
 
                 Text("\(streak.currentStreak)")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(streak.currentStreak > 0 ? forestTextPrimary : Color(hex: "#808080"))
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundColor(streak.currentStreak > 0 ? textColor : secondaryText.opacity(0.5))
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(streak.currentStreak > 0 ? brandGold.opacity(0.15) : Color.white.opacity(0.05))
-            )
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Capsule().fill(Color.black.opacity(0.04)))
         }
     }
     
-    // MARK: - Stats Section
     private var statsSection: some View {
-        HStack(spacing: 20) {
-            StatItem(
-                value: "\(statistics.totalEntries)",
-                label: "Completed",
-                icon: "checkmark.circle.fill",
-                color: accentColor
-            )
-            
-            StatItem(
-                value: statistics.formattedCompletionRate,
-                label: "Success Rate",
-                icon: "chart.pie.fill",
-                color: accentColor
-            )
-            
-            StatItem(
-                value: "\(streak.longestStreak)",
-                label: "Best Streak",
-                icon: "trophy.fill",
-                color: brandGold
-            )
-            
-            Spacer()
+        HStack(spacing: 24) {
+            miniStat(value: "\(statistics.totalEntries)", label: "DONE", color: accentColor)
+            miniStat(value: statistics.formattedCompletionRate, label: "RATE", color: accentColor)
+            miniStat(value: "\(streak.longestStreak)", label: "BEST", color: brandGold)
         }
     }
     
-    // MARK: - Footer Section
-    private var footerSection: some View {
-        HStack {
-            // Legend
-            GridLegend(color: accentColor)
-            
-            Spacer()
-            
-            // Quick actions
-            HStack(spacing: 12) {
-                // Add today button
-                Button(action: onAddToday) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("Today")
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(accentColor.opacity(0.15))
-                    )
-                    .foregroundColor(accentColor)
+    private var footerActions: some View {
+        HStack(spacing: 12) {
+            Button(action: onAddToday) {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus.circle.fill")
+                    Text("Today")
                 }
-                .buttonStyle(.plain)
-                
-                // View details button
-                Button(action: onViewDetails) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.right")
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("Details")
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.white.opacity(0.05))
-                    )
-                    .foregroundColor(forestTextSecondary)
-                }
-                .buttonStyle(.plain)
+                .font(.system(size: 13, weight: .bold))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(accentColor)
+                .foregroundColor(.white)
+                .clipShape(Capsule())
             }
+            .buttonStyle(.plain)
+            
+            Button(action: onViewDetails) {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 14, weight: .bold))
+                    .frame(width: 34, height: 34)
+                    .background(Color.black.opacity(0.05))
+                    .foregroundColor(secondaryText)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
         }
     }
-}
-
-/**
- * Individual stat item in the stats row
- */
-struct StatItem: View {
-    let value: String
-    let label: String
-    let icon: String
-    let color: Color
     
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 10))
-                .foregroundColor(color.opacity(0.7))
-            
-            VStack(alignment: .leading, spacing: 0) {
-                Text(value)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundColor(Color(hex: "#F5F5F0"))
-
-                Text(label)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(Color(hex: "#808080"))
-            }
+    private func miniStat(value: String, label: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundColor(textColor)
+            Text(label)
+                .font(.system(size: 8, weight: .black))
+                .foregroundColor(secondaryText)
+                .tracking(1)
         }
     }
 }
