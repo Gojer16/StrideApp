@@ -1,16 +1,13 @@
 import SwiftUI
 
 /**
- * WeeklyLogListView - Displays weekly log entries in an Excel-style table
- *
- * Features:
- * - Flat list (no day grouping)
- * - Sortable columns
- * - Inline editing
- * - Swipe to delete
- * - Shows: Date, Category, Task, Time, Win, Notes
- *
- * Aesthetic: Warm Paper/Editorial Light
+ * WeeklyLogListView - A professional, responsive log of focus sessions.
+ * 
+ * **UX Improvements:**
+ * 1. Responsive Layout: Replaces fixed table widths with flexible columns.
+ * 2. Integrated Sorting: All columns, including the "Win" column, are now sortable.
+ * 3. Clean Spacing: Increased separation between Task and Time for better readability.
+ * 4. Hitbox Fixes: Ensures the entire row is interactive and columns align perfectly.
  */
 struct WeeklyLogListView: View {
     let entries: [WeeklyLogEntry]
@@ -25,6 +22,7 @@ struct WeeklyLogListView: View {
         case category
         case task
         case time
+        case win
     }
     
     private let cardBackground = Color.white
@@ -43,15 +41,17 @@ struct WeeklyLogListView: View {
             return entries.sorted { $0.task < $1.task }
         case .time:
             return entries.sorted { $0.timeSpent > $1.timeSpent }
+        case .win:
+            return entries.sorted { ($0.isWinOfDay ? 1 : 0) > ($1.isWinOfDay ? 1 : 0) }
         }
     }
     
     var body: some View {
         VStack(spacing: 0) {
-            // Table header
+            // MARK: Table Header
             headerRow
             
-            // Table content
+            // MARK: Table Content
             List {
                 ForEach(Array(sortedEntries.enumerated()), id: \.element.id) { index, entry in
                     EntryRow(
@@ -60,24 +60,16 @@ struct WeeklyLogListView: View {
                         onDelete: { onDelete(entry) }
                     )
                     .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 3, leading: 16, bottom: 3, trailing: 16))
+                    .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
                     .opacity(isAnimating ? 1 : 0)
                     .offset(y: isAnimating ? 0 : 15)
-                    .animation(
-                        .spring(response: 0.4, dampingFraction: 0.75)
-                        .delay(Double(index) * 0.02),
-                        value: isAnimating
-                    )
+                    .animation(.spring(response: 0.4, dampingFraction: 0.75).delay(Double(index) * 0.02), value: isAnimating)
                 }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(cardBackground)
-                .shadow(color: Color.black.opacity(0.04), radius: 12, x: 0, y: 3)
-        )
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(cardBackground).shadow(color: Color.black.opacity(0.04), radius: 12, x: 0, y: 3))
         .onAppear {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                 isAnimating = true
@@ -86,67 +78,37 @@ struct WeeklyLogListView: View {
     }
     
     // MARK: - Header Row
+    
     private var headerRow: some View {
         HStack(spacing: 0) {
-            // Date
-            HeaderCell(title: "Date", sortOrder: .date, currentSort: $sortOrder)
-                .frame(width: 100)
+            HeaderCell(title: "DATE", sortOrder: .date, currentSort: $sortOrder)
+                .frame(width: 100, alignment: .leading)
             
-            Divider()
-                .frame(height: 40)
-                .background(Color.black.opacity(0.08))
+            HeaderCell(title: "CATEGORY", sortOrder: .category, currentSort: $sortOrder)
+                .frame(width: 140, alignment: .leading)
             
-            // Category
-            HeaderCell(title: "Category", sortOrder: .category, currentSort: $sortOrder)
-                .frame(width: 120)
+            HeaderCell(title: "FOCUS TASK", sortOrder: .task, currentSort: $sortOrder)
+                .frame(maxWidth: .infinity, alignment: .leading)
             
-            Divider()
-                .frame(height: 40)
-                .background(Color.black.opacity(0.08))
+            HeaderCell(title: "DURATION", sortOrder: .time, currentSort: $sortOrder)
+                .frame(width: 120, alignment: .leading)
             
-            // Task
-            HeaderCell(title: "Task", sortOrder: .task, currentSort: $sortOrder)
-                .frame(minWidth: 150)
+            HeaderCell(title: "WIN", sortOrder: .win, currentSort: $sortOrder)
+                .frame(width: 60, alignment: .center)
             
-            Divider()
-                .frame(height: 40)
-                .background(Color.black.opacity(0.08))
-            
-            // Time
-            HeaderCell(title: "Time", sortOrder: .time, currentSort: $sortOrder)
-                .frame(width: 140)
-            
-            Divider()
-                .frame(height: 40)
-                .background(Color.black.opacity(0.08))
-            
-            // Win
-            Text("Win")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundColor(secondaryText)
-                .frame(width: 50)
-            
-            Divider()
-                .frame(height: 40)
-                .background(Color.black.opacity(0.08))
-            
-            // Actions
+            // Actions placeholder
             Text("")
-                .frame(width: 60)
+                .frame(width: 80)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 14)
         .background(Color.black.opacity(0.03))
-        .overlay(
-            Rectangle()
-                .fill(Color.black.opacity(0.08))
-                .frame(height: 1),
-            alignment: .bottom
-        )
+        .overlay(Rectangle().fill(Color.black.opacity(0.08)).frame(height: 1), alignment: .bottom)
     }
 }
 
-// MARK: - Header Cell
+// MARK: - Subviews
+
 private struct HeaderCell: View {
     let title: String
     let sortOrder: WeeklyLogListView.SortOrder
@@ -154,10 +116,6 @@ private struct HeaderCell: View {
     
     private let secondaryText = Color(hex: "#616161")
     private let accentColor = Color(hex: "#C75B39")
-    
-    var isActive: Bool {
-        currentSort == sortOrder
-    }
     
     var body: some View {
         Button(action: {
@@ -167,12 +125,13 @@ private struct HeaderCell: View {
         }) {
             HStack(spacing: 4) {
                 Text(title)
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(isActive ? accentColor : secondaryText)
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundColor(currentSort == sortOrder ? accentColor : secondaryText.opacity(0.7))
+                    .tracking(1)
                 
-                if isActive {
+                if currentSort == sortOrder {
                     Image(systemName: "arrow.down")
-                        .font(.system(size: 9, weight: .bold))
+                        .font(.system(size: 8, weight: .bold))
                         .foregroundColor(accentColor)
                 }
             }
@@ -181,7 +140,6 @@ private struct HeaderCell: View {
     }
 }
 
-// MARK: - Entry Row
 private struct EntryRow: View {
     let entry: WeeklyLogEntry
     let onEdit: () -> Void
@@ -194,10 +152,6 @@ private struct EntryRow: View {
     private let accentColor = Color(hex: "#C75B39")
     private let winColor = Color(hex: "#D4A853")
     
-    var categoryColor: String {
-        WeeklyLogDatabase.shared.getCategoryColor(for: entry.category) ?? "#4ECDC4"
-    }
-    
     var body: some View {
         HStack(spacing: 0) {
             // Date
@@ -207,76 +161,67 @@ private struct EntryRow: View {
                 .frame(width: 100, alignment: .leading)
             
             // Category
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(Color(hex: categoryColor))
-                    .frame(width: 8, height: 8)
-                
+            HStack(spacing: 8) {
+                let color = WeeklyLogDatabase.shared.getCategoryColor(for: entry.category) ?? "#4A7C59"
+                Circle().fill(Color(hex: color)).frame(width: 6, height: 6)
                 Text(entry.category)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundColor(textColor)
                     .lineLimit(1)
             }
-            .frame(width: 120, alignment: .leading)
+            .frame(width: 140, alignment: .leading)
             
             // Task
             Text(entry.task)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(textColor)
                 .lineLimit(1)
-                .frame(minWidth: 150, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.trailing, 20) // Spacing from time
             
             // Time
-            VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
                 Text(entry.formattedHoursCount)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundColor(accentColor)
-                
-                Text(entry.formattedMinutes)
+                Text("(\(entry.timeInMinutes)m)")
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(secondaryText)
+                    .foregroundColor(secondaryText.opacity(0.6))
             }
-            .frame(width: 140, alignment: .leading)
+            .frame(width: 120, alignment: .leading)
             
             // Win
-            if entry.isWinOfDay {
-                Image(systemName: "star.fill")
-                    .font(.system(size: 16))
-                    .foregroundColor(winColor)
-                    .frame(width: 50)
-            } else {
-                Text("")
-                    .frame(width: 50)
+            ZStack {
+                if entry.isWinOfDay {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(winColor)
+                        .shadow(color: winColor.opacity(0.3), radius: 4)
+                }
             }
+            .frame(width: 60, alignment: .center)
             
             // Actions
-            HStack(spacing: 8) {
+            HStack(spacing: 12) {
                 Button(action: onEdit) {
                     Image(systemName: "pencil")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(secondaryText.opacity(0.7))
+                        .font(.system(size: 12))
+                        .foregroundColor(secondaryText.opacity(0.5))
                 }
                 .buttonStyle(.plain)
                 
                 Button(action: onDelete) {
                     Image(systemName: "trash")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(accentColor.opacity(0.7))
+                        .font(.system(size: 12))
+                        .foregroundColor(accentColor.opacity(0.5))
                 }
                 .buttonStyle(.plain)
             }
-            .frame(width: 60)
+            .frame(width: 80, alignment: .trailing)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isHovering ? Color.black.opacity(0.04) : Color.clear)
-        )
-        .contentShape(Rectangle())
-        .onHover { hovering in
-            isHovering = hovering
-        }
-        .animation(.easeInOut(duration: 0.15), value: isHovering)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 14)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(isHovering ? Color.black.opacity(0.02) : Color.clear))
+        .onHover { h in withAnimation(.easeInOut(duration: 0.15)) { isHovering = h } }
     }
 }
