@@ -6,10 +6,15 @@ All notable changes to the Stride project will be documented in this file.
 
 ### 🚀 Major Changes
 
+- **This Week Tab Redesign:** Transformed the weekly trends view into a professional **Weekly Reflection** dashboard.
+  - **Removed Noise:** Deleted the "Insights" section to focus on clean, factual data visualization.
+  - **Interactive Activity Chart:** Implemented a new bar chart with interactive day selection and brand-aligned styling.
+  - **Historical Log:** Added a refined "Detailed Log" section for easy day-by-day comparisons.
+
 - **Today Tab Redesign:** Replaced the asymmetric daily goal view with a professional **Editorial Summary Dashboard**.
   - **Removed Daily Goal:** Shifted focus to pure usage transparency by removing the 8-hour goal logic and UI.
   - **KPI Grid:** Added a balanced row of core metrics: Active Time, App Switches, and Total Apps Used.
-  - **Enhanced Visuals:** Updated the Category Mix donut chart and app rows with a high-contrast editorial aesthetic and refined hover states.
+  - **Enhanced Visuals:** Updated the Category Mix donut chart and app rows with a high-contrast editorial aesthetic.
 
 - **Project Rename:** Transformed `ScreenDetector` into **Stride**.
   - Updated all branding, documentation, and internal symbols.

@@ -14,7 +14,7 @@ A macOS application that tracks your active application and window usage time. S
 - **Application Statistics**: Total time spent, visit count, first/last seen dates for each app
 - **Window History**: Track time spent in specific windows/tabs
 - **Today View**: Editorial summary of today's core KPIs (Active Time, App Switches, Total Apps) with category distribution and top app rankings.
-- **This Week**: 7-day usage charts with daily averages and most active days
+- **This Week**: Professional "Weekly Reflection" dashboard with interactive activity charts, core metrics, and a detailed historical comparison log.
 - **Category-based Organization**: Group apps into customizable categories (Work, Entertainment, Social, etc.)
 
 ### Productivity Tools
