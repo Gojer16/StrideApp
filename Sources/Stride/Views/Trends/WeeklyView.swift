@@ -20,6 +20,7 @@ import SwiftUI
  */
 struct WeeklyView: View {
     @State private var weeklyData: [(date: Date, time: TimeInterval)] = []
+    @State private var categoryTotals: [(category: Category, time: TimeInterval)] = []
     
     /// Controls the entrance animations for the dashboard components
     @State private var isLoaded = false
@@ -62,10 +63,13 @@ struct WeeklyView: View {
                         // MARK: 2. Weekly Performance Grid
                         metricsRow
                         
-                        // MARK: 3. Distribution Visualization
+                        // MARK: 3. Categories This Week
+                        categoriesSection
+                        
+                        // MARK: 4. Distribution Visualization
                         chartSection
                         
-                        // MARK: 4. Historical Log
+                        // MARK: 5. Historical Log
                         dayBreakdownSection
                     }
                     
@@ -146,6 +150,71 @@ struct WeeklyView: View {
                 isLoaded: isLoaded
             )
         }
+    }
+    
+    private var categoriesSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("CATEGORIES THIS WEEK")
+                .font(.system(size: 11, weight: .black))
+                .tracking(1.5)
+                .foregroundColor(secondaryText)
+            
+            if categoryTotals.isEmpty {
+                emptyCategoriesView
+            } else {
+                categoriesListView
+            }
+        }
+        .padding(24)
+        .background(glassMaterial)
+        .opacity(isLoaded ? 1 : 0)
+        .offset(y: isLoaded ? 0 : 20)
+        .animation(.spring(response: 0.6).delay(0.35), value: isLoaded)
+    }
+    
+    private var emptyCategoriesView: some View {
+        HStack {
+            Image(systemName: "folder")
+                .foregroundColor(secondaryText.opacity(0.5))
+            Text("No category data for this week")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(secondaryText)
+        }
+        .padding(.vertical, 20)
+    }
+    
+    private var categoriesListView: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(categoryTotals, id: \.category.id) { item in
+                    categoryCard(for: item)
+                }
+            }
+        }
+    }
+    
+    private func categoryCard(for item: (category: Category, time: TimeInterval)) -> some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(Color(hex: item.category.color))
+                .frame(width: 10, height: 10)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.category.name)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(textColor)
+                Text(formatTime(item.time))
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(secondaryText)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.white.opacity(0.6))
+                .shadow(color: .black.opacity(0.03), radius: 8, x: 0, y: 4)
+        )
     }
     
     /**
@@ -282,6 +351,11 @@ struct WeeklyView: View {
             let time = UsageDatabase.shared.getTime(for: date)
             return (date, time)
         }.reversed()
+        
+        // Load category totals for the same 7-day period
+        if let firstDay = weeklyData.first?.date {
+            categoryTotals = UsageDatabase.shared.getCategoryTotalsForWeek(startingFrom: firstDay)
+        }
     }
     
     private func weekRangeString() -> String {

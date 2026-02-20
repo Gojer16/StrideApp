@@ -505,23 +505,24 @@ class UsageDatabase {
     
     func getCategory(byId id: String) -> Category? {
         guard db != nil else { return nil }
+        return dbQueue.sync { unsafeGetCategory(byId: id) }
+    }
+    
+    private func unsafeGetCategory(byId id: String) -> Category? {
+        guard db != nil else { return nil }
         
-        let sql = "SELECT * FROM categories WHERE id = ?;"
+        var statement: OpaquePointer?
+        var result: Category? = nil
         
-        return dbQueue.sync {
-            var statement: OpaquePointer?
-            var result: Category? = nil
+        if sqlite3_prepare_v2(db, "SELECT * FROM categories WHERE id = ?;", -1, &statement, nil) == SQLITE_OK {
+            sqlite3_bind_text(statement, 1, (id.lowercased() as NSString).utf8String, -1, nil)
             
-            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
-                sqlite3_bind_text(statement, 1, (id.lowercased() as NSString).utf8String, -1, nil)
-                
-                if sqlite3_step(statement) == SQLITE_ROW {
-                    result = extractCategory(from: statement!)
-                }
+            if sqlite3_step(statement) == SQLITE_ROW {
+                result = extractCategory(from: statement!)
             }
-            sqlite3_finalize(statement)
-            return result
         }
+        sqlite3_finalize(statement)
+        return result
     }
     
     private func extractCategory(from statement: OpaquePointer) -> Category? {
@@ -1117,6 +1118,59 @@ class UsageDatabase {
             }
             sqlite3_finalize(statement)
             return totalTime
+        }
+    }
+    
+    func getCategoryTotalsForWeek(startingFrom weekStart: Date) -> [(category: Category, time: TimeInterval)] {
+        guard db != nil else { return [] }
+        
+        let calendar = Calendar.current
+        let startOfWeek = calendar.startOfDay(for: weekStart)
+        let endOfWeek = calendar.date(byAdding: .day, value: 7, to: startOfWeek)!
+        
+        print("📊 Category query: start=\(startOfWeek), end=\(endOfWeek)")
+        
+        let sql = """
+            SELECT COALESCE(a.category_id, '\(Category.uncategorizedId.lowercased())') as category_id, SUM(s.duration) as total_time
+            FROM sessions s
+            JOIN windows w ON s.window_id = w.id
+            JOIN applications a ON w.app_id = a.id
+            WHERE s.start_time >= ? AND s.start_time < ?
+            GROUP BY category_id
+            ORDER BY total_time DESC;
+        """
+        
+        return dbQueue.sync {
+            var results: [(Category, TimeInterval)] = []
+            var statement: OpaquePointer?
+            
+            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+                sqlite3_bind_double(statement, 1, startOfWeek.timeIntervalSince1970)
+                sqlite3_bind_double(statement, 2, endOfWeek.timeIntervalSince1970)
+                
+                while sqlite3_step(statement) == SQLITE_ROW {
+                    if let categoryIdCString = sqlite3_column_text(statement, 0) {
+                        let categoryId = String(cString: categoryIdCString).lowercased()
+                        let totalTime = sqlite3_column_double(statement, 1)
+                        
+                        print("📊 Found category_id=\(categoryId), time=\(totalTime)")
+                        
+                        if let category = unsafeGetCategory(byId: categoryId) {
+                            results.append((category, totalTime))
+                        } else {
+                            print("📊 Category not found for id=\(categoryId), using uncategorized")
+                            if let uncategorized = unsafeGetCategory(byId: Category.uncategorizedId) {
+                                results.append((uncategorized, totalTime))
+                            }
+                        }
+                    }
+                }
+            } else {
+                print("📊 SQL prepare failed")
+            }
+            sqlite3_finalize(statement)
+            print("📊 Total results: \(results.count)")
+            return results
         }
     }
 }

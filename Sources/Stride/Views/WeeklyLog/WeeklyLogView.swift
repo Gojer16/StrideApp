@@ -215,6 +215,7 @@ struct WeeklyLogView: View {
                     }
                 }
             }
+            Spacer()
         }
         .padding(.horizontal, 24).padding(.vertical, 20)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(cardBackground).shadow(color: Color.black.opacity(0.04), radius: 12, x: 0, y: 3))
@@ -279,7 +280,9 @@ struct WeeklyLogView: View {
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(cardBackground).shadow(color: Color.black.opacity(0.04), radius: 12, x: 0, y: 3))
     }
     
-    private func loadEntries() { entries = WeeklyLogDatabase.shared.getEntriesForWeek(startingFrom: currentWeekStart) }
+    private func loadEntries() { 
+        entries = WeeklyLogDatabase.shared.getEntriesForWeek(startingFrom: currentWeekStart)
+    }
     private func previousWeek() { withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { currentWeekStart = Calendar.current.date(byAdding: .weekOfYear, value: -1, to: currentWeekStart) ?? currentWeekStart; loadEntries() } }
     private func nextWeek() { withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { currentWeekStart = Calendar.current.date(byAdding: .weekOfYear, value: 1, to: currentWeekStart) ?? currentWeekStart; loadEntries() } }
     private func deleteEntry(_ entry: WeeklyLogEntry) { WeeklyLogDatabase.shared.deleteEntry(id: entry.id); loadEntries() }
