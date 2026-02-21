@@ -28,6 +28,9 @@ struct SettingsView: View {
                     // Day Boundary Settings
                     dayBoundarySection
                     
+                    // Idle Detection Settings
+                    idleDetectionSection
+                    
                     Spacer()
                 }
                 .padding(.horizontal, 40)
@@ -103,6 +106,83 @@ struct SettingsView: View {
                                 .fill(accentColor.opacity(0.08))
                         )
                     }
+                }
+            }
+            .padding(24)
+            .background(glassMaterial)
+        }
+    }
+    
+    private var idleDetectionSection: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            // Section Title
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Idle Detection")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(textColor)
+                
+                Text("Define how long without keyboard/mouse input before a session is considered passive.")
+                    .font(.system(size: 14))
+                    .foregroundColor(secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            
+            // Threshold Slider
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 16) {
+                    Text("Idle threshold:")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(textColor)
+                    
+                    Text("\(Int(preferences.idleThreshold)) seconds")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundColor(accentColor)
+                        .frame(width: 80, alignment: .leading)
+                }
+                
+                Slider(value: Binding(
+                    get: { preferences.idleThreshold },
+                    set: { preferences.idleThreshold = $0 }
+                ), in: 15...300, step: 5)
+                .tint(accentColor)
+                
+                // Quick presets
+                HStack(spacing: 12) {
+                    ForEach([30, 65, 120, 180], id: \.self) { preset in
+                        Button(action: {
+                            preferences.idleThreshold = TimeInterval(preset)
+                        }) {
+                            Text("\(preset)s")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(Int(preferences.idleThreshold) == preset ? .white : secondaryText)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    Capsule()
+                                        .fill(Int(preferences.idleThreshold) == preset ? accentColor : Color.gray.opacity(0.2))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                
+                // Explanation
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundColor(accentColor)
+                            .font(.system(size: 14))
+                        
+                        Text("Active time only counts when you're typing or moving the mouse. Passive time is tracked separately.")
+                            .font(.system(size: 13))
+                            .foregroundColor(secondaryText)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(accentColor.opacity(0.08))
+                    )
                 }
             }
             .padding(24)
