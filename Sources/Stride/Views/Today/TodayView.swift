@@ -21,6 +21,7 @@ import SwiftUI
 struct TodayView: View {
     @State private var applications: [AppUsage] = []
     @State private var totalTime: TimeInterval = 0
+    @State private var totalPassiveTime: TimeInterval = 0
     @State private var totalVisits: Int = 0
     @State private var categoryBreakdown: [(category: Category, time: TimeInterval)] = []
     
@@ -132,6 +133,15 @@ struct TodayView: View {
                 icon: "clock.fill",
                 color: accentColor,
                 delay: 0.1,
+                isLoaded: isLoaded
+            )
+            
+            SummaryMetricCard(
+                title: "Passive Time",
+                value: formattedPassiveTime(),
+                icon: "pause.circle.fill",
+                color: Color(hex: "#5B7C8C").opacity(0.7), // Stride Slate (muted)
+                delay: 0.15,
                 isLoaded: isLoaded
             )
             
@@ -291,6 +301,10 @@ struct TodayView: View {
             $0 + UsageDatabase.shared.getTodayTime(for: $1.id.uuidString)
         }
         
+        totalPassiveTime = applications.reduce(0) {
+            $0 + UsageDatabase.shared.getTodayPassiveTime(for: $1.id.uuidString)
+        }
+        
         // Note: Currently returns cumulative visits, could be optimized for "today-only" visits
         totalVisits = applications.reduce(0) {
             $0 + $1.visitCount
@@ -323,6 +337,12 @@ struct TodayView: View {
     private func formattedTotalTime() -> String {
         let hours = Int(totalTime) / 3600
         let minutes = (Int(totalTime) % 3600) / 60
+        return hours > 0 ? "\(hours)h \(minutes)m" : "\(minutes)m"
+    }
+    
+    private func formattedPassiveTime() -> String {
+        let hours = Int(totalPassiveTime) / 3600
+        let minutes = (Int(totalPassiveTime) % 3600) / 60
         return hours > 0 ? "\(hours)h \(minutes)m" : "\(minutes)m"
     }
     
