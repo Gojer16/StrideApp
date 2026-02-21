@@ -84,7 +84,7 @@ struct CategoryManagementView: View {
             }
             .buttonStyle(.plain)
             .scaleEffect(isAnimating ? 1.0 : 0.95).opacity(isAnimating ? 1.0 : 0)
-            .animation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.1), value: isAnimating)
+            .animation(DesignSystem.Animation.entrance.spring.delay(0.1), value: isAnimating)
         }
     }
     
@@ -135,7 +135,7 @@ struct CategoryManagementView: View {
                             }
                             .offset(y: isAnimating ? 0 : 20)
                             .opacity(isAnimating ? 1 : 0)
-                            .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(Double(index) * 0.05), value: isAnimating)
+                            .animation(DesignSystem.Animation.entrance.spring.delay(Double(index) * 0.05), value: isAnimating)
                     }
                     .onMove(perform: moveCategories)
                 } header: {

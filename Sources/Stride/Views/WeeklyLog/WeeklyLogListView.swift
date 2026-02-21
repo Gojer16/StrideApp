@@ -63,7 +63,7 @@ struct WeeklyLogListView: View {
                     .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
                     .opacity(isAnimating ? 1 : 0)
                     .offset(y: isAnimating ? 0 : 15)
-                    .animation(.spring(response: 0.4, dampingFraction: 0.75).delay(Double(index) * 0.02), value: isAnimating)
+                    .animation(DesignSystem.Animation.entrance.spring.delay(Double(index) * 0.02), value: isAnimating)
                 }
             }
             .listStyle(.plain)
@@ -71,7 +71,7 @@ struct WeeklyLogListView: View {
         }
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(cardBackground).shadow(color: Color.black.opacity(0.04), radius: 12, x: 0, y: 3))
         .onAppear {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+            withAnimation(DesignSystem.Animation.entrance.spring) {
                 isAnimating = true
             }
         }

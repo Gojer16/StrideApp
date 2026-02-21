@@ -48,7 +48,7 @@ struct WeeklyLogView: View {
         }
         .onAppear {
             loadEntries()
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { isAnimating = true }
+            withAnimation(DesignSystem.Animation.entrance.spring) { isAnimating = true }
         }
         .sheet(isPresented: $showingAddEntry) {
             WeeklyLogEntryForm(entry: nil, weekStart: currentWeekStart) { _ in loadEntries() }

@@ -198,7 +198,7 @@ struct TodayView: View {
         }
         .opacity(isLoaded ? 1 : 0)
         .offset(y: isLoaded ? 0 : 30)
-        .animation(.spring(response: 0.6).delay(0.4), value: isLoaded)
+        .animation(DesignSystem.Animation.entrance.spring.delay(0.4), value: isLoaded)
     }
     
     /**
@@ -227,7 +227,7 @@ struct TodayView: View {
         }
         .opacity(isLoaded ? 1 : 0)
         .offset(y: isLoaded ? 0 : 30)
-        .animation(.spring(response: 0.6).delay(0.5), value: isLoaded)
+        .animation(DesignSystem.Animation.entrance.spring.delay(0.5), value: isLoaded)
     }
     
     private var emptyStateView: some View {
@@ -366,6 +366,6 @@ struct SummaryMetricCard: View {
         )
         .opacity(isLoaded ? 1 : 0)
         .offset(y: isLoaded ? 0 : 20)
-        .animation(.spring(response: 0.6).delay(delay), value: isLoaded)
+        .animation(DesignSystem.Animation.entrance.spring.delay(delay), value: isLoaded)
     }
 }

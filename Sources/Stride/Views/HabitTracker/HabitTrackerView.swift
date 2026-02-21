@@ -200,7 +200,7 @@ struct HabitTrackerView: View {
         }
         .opacity(isAnimating ? 1 : 0)
         .offset(y: isAnimating ? 0 : 20)
-        .animation(.spring(response: 0.6).delay(0.1), value: isAnimating)
+        .animation(DesignSystem.Animation.entrance.spring.delay(0.1), value: isAnimating)
     }
     
     private var filterSection: some View {
@@ -220,7 +220,7 @@ struct HabitTrackerView: View {
         }
         .opacity(isAnimating ? 1 : 0)
         .offset(y: isAnimating ? 0 : 20)
-        .animation(.spring(response: 0.6).delay(0.2), value: isAnimating)
+        .animation(DesignSystem.Animation.entrance.spring.delay(0.2), value: isAnimating)
     }
     
     private var habitsGridSection: some View {
@@ -242,7 +242,7 @@ struct HabitTrackerView: View {
                 )
                 .opacity(isAnimating ? 1 : 0)
                 .offset(y: isAnimating ? 0 : 30)
-                .animation(.spring(response: 0.6).delay(0.3 + Double(index) * 0.05), value: isAnimating)
+                .animation(DesignSystem.Animation.entrance.spring.delay(0.3 + Double(index) * 0.05), value: isAnimating)
             }
         }
     }

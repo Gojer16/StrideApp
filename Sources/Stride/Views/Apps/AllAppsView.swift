@@ -263,7 +263,7 @@ struct AllAppsView: View {
                         }
                         .opacity(isAnimating ? 1 : 0)
                         .offset(y: isAnimating ? 0 : 20)
-                        .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(Double(index) * 0.03), value: isAnimating)
+                        .animation(DesignSystem.Animation.entrance.spring.delay(Double(index) * 0.03), value: isAnimating)
                 }
             }
             .padding(.horizontal, 24)
