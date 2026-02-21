@@ -25,6 +25,9 @@ struct TodayAppRow: View {
     /// Ranking position (1-5)
     let rank: Int
     
+    /// Hourly usage data for sparkline (optional, only for top 3)
+    let hourlyUsage: [TimeInterval]
+    
     @State private var isHovered = false
     
     private var category: Category {
@@ -59,6 +62,12 @@ struct TodayAppRow: View {
                         .font(.system(size: 8, weight: .black))
                         .foregroundColor(.secondary.opacity(0.6))
                         .tracking(1)
+                    
+                    // Sparkline for top 3 apps
+                    if rank <= 3 && !hourlyUsage.isEmpty {
+                        Sparkline(data: hourlyUsage, color: categoryColor)
+                            .opacity(0.8)
+                    }
                 }
                 
                 // Secondary visualization of usage relative to total
