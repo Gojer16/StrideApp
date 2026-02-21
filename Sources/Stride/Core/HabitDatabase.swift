@@ -90,11 +90,21 @@ final class HabitDatabase: BaseDatabase, ObservableObject {
     
     // MARK: - Public Thread-Safe Operations
     
+    // PERFORMANCE NOTE: For 10-20 habits with 91-day grids, current implementation is sufficient.
+    // If scaling to 50+ habits, consider:
+    // 1. Batch operations: Queue multiple increments/decrements into single transaction
+    // 2. Lazy loading: Only load visible date ranges
+    // 3. Virtual scrolling: Render only visible habit cards
+    // 4. Background streak calculation: Move to background thread with caching
+    
     func incrementEntry(habitId: UUID, date: Date) -> HabitDatabaseResult<Void> {
         return dbQueue.sync {
             guard let db = db else { return .failure(.databaseNotInitialized) }
             
-            let existing = unsafeGetEntry(for: habitId, on: date)
+            // Normalize date to start of day for consistency (handles DST/timezone)
+            let normalizedDate = Calendar.current.startOfDay(for: date)
+            
+            let existing = unsafeGetEntry(for: habitId, on: normalizedDate)
             
             if let entry = existing {
                 let newValue = entry.value + 1.0
@@ -111,7 +121,7 @@ final class HabitDatabase: BaseDatabase, ObservableObject {
                 sqlite3_step(statement)
                 sqlite3_finalize(statement)
             } else {
-                let entry = HabitEntry(habitId: habitId, date: Calendar.current.startOfDay(for: date), value: 1.0)
+                let entry = HabitEntry(habitId: habitId, date: normalizedDate, value: 1.0)
                 unsafeAddEntry(entry)
             }
             
@@ -124,7 +134,10 @@ final class HabitDatabase: BaseDatabase, ObservableObject {
         return dbQueue.sync {
             guard let db = db else { return .failure(.databaseNotInitialized) }
             
-            guard let entry = unsafeGetEntry(for: habitId, on: date) else {
+            // Normalize date to start of day for consistency (handles DST/timezone)
+            let normalizedDate = Calendar.current.startOfDay(for: date)
+            
+            guard let entry = unsafeGetEntry(for: habitId, on: normalizedDate) else {
                 return .success(())
             }
             
