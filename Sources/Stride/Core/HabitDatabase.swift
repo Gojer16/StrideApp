@@ -128,19 +128,35 @@ final class HabitDatabase: BaseDatabase, ObservableObject {
                 return .success(())
             }
             
-            let newValue = max(0, entry.value - 1.0)
-            let sql = "UPDATE habit_entries SET value = ?, created_at = ? WHERE id = ?;"
-            var statement: OpaquePointer?
+            let newValue = entry.value - 1.0
             
-            guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
-                return .failure(.queryFailed(sql: sql, message: "Prepare failed"))
+            // If decrementing to zero, delete the entry entirely
+            if newValue <= 0 {
+                let sql = "DELETE FROM habit_entries WHERE id = ?;"
+                var statement: OpaquePointer?
+                
+                guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+                    return .failure(.queryFailed(sql: sql, message: "Prepare failed"))
+                }
+                
+                sqlite3_bind_text(statement, 1, (entry.id.uuidString as NSString).utf8String, -1, nil)
+                sqlite3_step(statement)
+                sqlite3_finalize(statement)
+            } else {
+                // Otherwise, update the value
+                let sql = "UPDATE habit_entries SET value = ?, created_at = ? WHERE id = ?;"
+                var statement: OpaquePointer?
+                
+                guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+                    return .failure(.queryFailed(sql: sql, message: "Prepare failed"))
+                }
+                
+                sqlite3_bind_double(statement, 1, newValue)
+                sqlite3_bind_double(statement, 2, Date().timeIntervalSince1970)
+                sqlite3_bind_text(statement, 3, (entry.id.uuidString as NSString).utf8String, -1, nil)
+                sqlite3_step(statement)
+                sqlite3_finalize(statement)
             }
-            
-            sqlite3_bind_double(statement, 1, newValue)
-            sqlite3_bind_double(statement, 2, Date().timeIntervalSince1970)
-            sqlite3_bind_text(statement, 3, (entry.id.uuidString as NSString).utf8String, -1, nil)
-            sqlite3_step(statement)
-            sqlite3_finalize(statement)
             
             DispatchQueue.main.async { self.lastUpdate = Date() }
             return .success(())
