@@ -11,6 +11,7 @@ import SwiftUI
  */
 struct HabitTrackerView: View {
     @StateObject private var database = HabitDatabase.shared
+    @StateObject private var preferences = UserPreferences.shared
     
     @State private var habits: [Habit] = []
     @State private var selectedFilter: HabitFilter = .all
@@ -19,6 +20,9 @@ struct HabitTrackerView: View {
     @State private var detailHabit: Habit?
     @State private var selectedDay: SelectedDay?
     @State private var isAnimating = false
+    @State private var showModifierHint = false
+    @State private var showHistorySidebar = false
+    @State private var historyHabit: Habit?
     
     // Stats State
     @State private var overallStreak = 0
@@ -53,6 +57,16 @@ struct HabitTrackerView: View {
                     // MARK: 1. Editorial Header
                     headerSection
                         .padding(.top, 24)
+                    
+                    // MARK: 1.5. Modifier Hint Banner (conditional)
+                    if showModifierHint {
+                        ModifierHintBanner(onDismiss: {
+                            preferences.dismissModifierHint()
+                            showModifierHint = false
+                        })
+                        .padding(.horizontal, 40)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                     
                     // MARK: 2. Bento Stats Grid
                     bentoStatsGrid
@@ -110,6 +124,19 @@ struct HabitTrackerView: View {
                     }
                 }
             )
+        }
+        .overlay {
+            if showHistorySidebar, let habit = historyHabit {
+                HabitHistorySidebar(
+                    habit: habit,
+                    entries: database.getEntries(for: habit.id, from: Calendar.current.date(byAdding: .day, value: -90, to: Date())!, to: Date()),
+                    onClose: {
+                        showHistorySidebar = false
+                        historyHabit = nil
+                    }
+                )
+                .transition(.opacity)
+            }
         }
         .onAppear {
             loadData()
@@ -236,9 +263,10 @@ struct HabitTrackerView: View {
                     streak: streak,
                     statistics: stats,
                     onDayTap: { date in handleDayTap(habit: habit, date: date) },
-                    onDayLongPress: { date in handleDayLongPress(habit: habit, date: date) },
+                    onShowHistory: { date in handleShowHistory(habit: habit, date: date) },
                     onAddToday: { handleAddToday(habit: habit) },
-                    onViewDetails: { detailHabit = habit }
+                    onViewDetails: { detailHabit = habit },
+                    onIncrementTracked: { handleIncrementTracked() }
                 )
                 .opacity(isAnimating ? 1 : 0)
                 .offset(y: isAnimating ? 0 : 30)
@@ -309,6 +337,17 @@ struct HabitTrackerView: View {
     
     // MARK: - Actions
     
+    private func handleIncrementTracked() {
+        preferences.recordHabitIncrement()
+        
+        // Check if we should show the hint
+        if preferences.shouldShowModifierHint && !showModifierHint {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                showModifierHint = true
+            }
+        }
+    }
+    
     private func handleDayTap(habit: Habit, date: Date) {
         if date.isToday { quickToggleToday(habit: habit) }
         else { selectedDay = SelectedDay(habit: habit, date: date, entry: database.getEntry(for: habit.id, on: date)) }
@@ -316,6 +355,11 @@ struct HabitTrackerView: View {
     
     private func handleDayLongPress(habit: Habit, date: Date) {
         selectedDay = SelectedDay(habit: habit, date: date, entry: database.getEntry(for: habit.id, on: date))
+    }
+    
+    private func handleShowHistory(habit: Habit, date: Date) {
+        historyHabit = habit
+        showHistorySidebar = true
     }
     
     private func handleAddToday(habit: Habit) {
