@@ -16,6 +16,11 @@ let package = Package(
             name: "Stride",
             dependencies: [],
             path: "Sources/Stride"
+        ),
+        .testTarget(
+            name: "StrideTests",
+            dependencies: ["Stride"],
+            path: "Tests/StrideTests"
         )
     ]
 )
