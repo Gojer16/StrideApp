@@ -6,6 +6,15 @@ All notable changes to the Stride project will be documented in this file.
 
 ### 🚀 Major Changes
 
+- **Idle Detection & Active vs Passive Time Tracking:** Introduced system-wide idle detection to distinguish between actual user activity and passive window focus.
+  - **Active Time Metric**: Now accurately reflects keyboard/mouse activity, not just window focus time.
+  - **Passive Time Metric**: New KPI card in Today tab showing time spent watching videos, reading, or away from computer.
+  - **Configurable Threshold**: Set idle threshold in Settings (15-300 seconds, default: 65s).
+  - **Session Pause/Resume**: Sessions automatically pause when idle, resume when user returns (same session continues).
+  - **IOKit Integration**: Uses macOS HIDIdleTime for lightweight, system-wide idle detection.
+  - **Database Migration**: Added passive_duration column to sessions table.
+  - **Raw Truth Philosophy**: Ensures metrics reflect actual engagement, not inflated window focus time.
+
 - **Deceptive Day Mode:** Introduced customizable day boundaries for the Today tab.
   - **Custom Day Start Hour:** Users can now define when their day starts (e.g., 4:00 AM instead of midnight).
   - **Extended Mode Indicator:** When viewing data before the day start hour, the Today tab shows "(extended)" with a "LATE NIGHT" badge.
@@ -14,6 +23,15 @@ All notable changes to the Stride project will be documented in this file.
   - **Scope:** Feature applies only to Today tab; other views (This Week, All Apps) continue using calendar days.
 
 ### ✨ Features
+
+- **Collapsible Habit Cards:**
+  - **Chevron Button:** Each habit card has a collapse/expand button in the header
+  - **Minimal Collapsed State:** Shows only icon, name, streak, and success rate (single row, ~80pt)
+  - **Per-Habit Memory:** Collapse state persists across app restarts
+  - **Smart Default:** Habits with activity today expand, inactive habits collapse
+  - **Global Toggle:** "Collapse All" / "Expand All" button in filter section
+  - **Bounce Animation:** Smooth spring animations with staggered cascade effect
+  - **Reduces Clutter:** Makes it easy to focus on active habits while keeping others accessible
 
 - **Habit Tracker History Sidebar:**
   - **Info Icon on Hover:** Grid cells now show ℹ️ icon alongside +/− icons
