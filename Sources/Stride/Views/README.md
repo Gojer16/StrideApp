@@ -5,7 +5,7 @@
 The Views directory constitutes the presentation layer of the Stride screen time tracking application, implementing all SwiftUI-based user interface components. This layer translates raw usage data into actionable, visually compelling dashboards while providing multiple navigation paths for different user workflows.
 
 - **What this feature does:**
-  - Renders seven primary navigation tabs: Live Session, All Apps, Categories, Weekly Log, Today, This Week, and Habit Tracker
+  - Renders seven primary navigation destinations via sidebar: Live Session, All Apps, Categories, Weekly Log, Today, This Week, and Habit Tracker
   - Provides real-time reactive UI updates via AppState environment object binding
   - Implements "Ambient Status" design philosophy where background colors and visual states respond to active application category changes
   - Manages both windowed (MainWindowView) and menu bar (MenuBarView) presentation contexts
@@ -45,7 +45,7 @@ The Views directory constitutes the presentation layer of the Stride screen time
   - Network requests or external API integrations
 
 - **Dependencies on other features:**
-  - **Models:** Imports `Habit`, `HabitEntry`, `HabitStreak`, `HabitStatistics`, `AppUsage`, `Category`, `WeeklyLogEntry`
+  - **Models:** Imports `Habit`, `HabitEntry`, `HabitStreak`, `HabitStatistics` (all top-level in HabitModels.swift), `AppUsage`, `Category`, `WeeklyLogEntry`
   - **Core:** Depends on `AppState` (global reactive state), `UsageDatabase`, `HabitDatabase`, `WeeklyLogDatabase`
   - **Foundation:** Uses `Date`, `Calendar`, `TimeInterval`, `UUID` for data manipulation
 
@@ -93,7 +93,8 @@ The Views directory constitutes the presentation layer of the Stride screen time
 
 - **State management strategy:**
   - Global: `@EnvironmentObject private var appState: AppState` for reactive cross-view updates
-  - Local: `@StateObject private var database = HabitDatabase.shared` for view-specific data observation
+  - View-local: `@State private var habits: [Habit] = []` for storing loaded data (most views)
+  - Database observation: `@StateObject private var database = HabitDatabase.shared` (HabitTrackerView only)
   - Transient: `@State private var isAnimating = false` for entrance animations
   - Form: Local `@State` copies of model data committed to database on explicit save actions
 
@@ -118,25 +119,25 @@ The Views directory constitutes the presentation layer of the Stride screen time
 
 ### AllApps/
 - **AllAppsView.swift (286 lines):** Searchable, filterable, sortable grid of all tracked applications. Uses NavigationSplitView with detail sidebar for app details. FilteredApps computed property applies searchText, selectedCategory, and sortOrder transforms. LoadData() calls UsageDatabase.shared.getAllApplications().
-- **AppGridCard.swift:** Individual app card in the lazy grid with usage statistics.
-- **AppDetailSidebar.swift:** Detail panel for selected app with category assignment and statistics.
+- **AppGridCard.swift (103 lines):** Individual app card in the lazy grid with usage statistics and category color indicator.
+- **AppDetailSidebar.swift (117 lines):** Detail panel for selected app with category assignment dropdown and time statistics.
 
 ### Categories/
 - **CategoryManagementView.swift (219 lines):** HSplitView with category list (left) and apps list (right). Provides CRUD operations for categories. Context menu for edit/delete on non-default categories.
-- **CategoryRow.swift:** Single row in the category list with app count badge.
-- **CategoryAppsListView.swift:** Right-side panel showing apps assigned to selected category.
-- **Modals/CategoryEditorView.swift:** Sheet for creating/editing category details.
-- **Modals/AssignAppsToCategoryView.swift:** Modal for bulk-assigning apps to a category.
+- **CategoryRow.swift (87 lines):** Single row in the category list with app count badge and color indicator.
+- **CategoryAppsListView.swift (193 lines):** Right-side panel showing apps assigned to selected category with add/remove functionality.
+- **Modals/CategoryEditorView.swift:** Sheet for creating/editing category details (name, icon, color).
+- **Modals/AssignAppsToCategoryView.swift:** Modal for bulk-assigning apps to a category with search.
 
 ### WeeklyLog/
 - **WeeklyLogView.swift (289 lines):** Main container for focus session tracking. Provides Calendar/List toggle (line 15). Week navigation via previousWeek/nextWeek functions. Deletion confirmation overlay with asymmetric transition.
 - **WeeklyLogCalendarView.swift (227 lines):** 7-column calendar grid with entry blocks sized proportionally to time spent.
-- **WeeklyLogListView.swift:** Alternative list-based view for weekly entries.
-- **WeeklyLogEntryForm.swift:** Form for creating/editing weekly log entries.
+- **WeeklyLogListView.swift (227 lines):** Alternative list-based view for weekly entries with row-by-row display.
+- **WeeklyLogEntryForm.swift:** Form for creating/editing weekly log entries with task, category, time, and win toggle.
 
 ### Today/
 - **TodayView.swift (371 lines):** Daily summary dashboard. SummaryMetricCard components for Active Time, App Switches, Total Apps. Category distribution uses manual Circle trim drawing (lines 151-173) for donut chart. Loads data via UsageDatabase.shared.getTodayTime() and aggregates by category.
-- **TodayAppRow.swift:** Individual app row in the top utilization list.
+- **TodayAppRow.swift (110 lines):** Individual app row in the top utilization list with progress bar.
 
 ### Trends/
 - **WeeklyView.swift (499 lines):** Weekly reflection hub with bar chart visualization. DayRow components for detailed log. Interactive bar chart with selection state tracking (selectedDay: Int?). Loads UsageDatabase.shared.getTime() and getCategoryTotalsForWeek().
@@ -145,19 +146,19 @@ The Views directory constitutes the presentation layer of the Stride screen time
 - **HabitTrackerView.swift (421 lines):** Editorial dashboard with BentoStatCard grid. FilterChip navigation for All/Daily/Weekly/Monthly/Archived. HabitGridCard components with 90-day ContributionGrid. Sheet presentations for HabitForm and DayDetailView. Calculates statistics in calculateOverallStats() method.
 - **HabitGridCard.swift (170 lines):** Card wrapper with header, ContributionGrid, and action buttons.
 - **ContributionGrid.swift (152 lines):** GitHub-style 13-week heatmap grid. DayCell with tactile pop animation on tap. Context menu for increment/decrement. onDayLongPress opens detail sheet.
-- **HabitCalendarHeatmap.swift:** Alternative calendar-based heatmap visualization.
+- **HabitCalendarHeatmap.swift (192 lines):** Alternative calendar-based heatmap visualization with monthly view.
 - **HabitForm.swift:** Form for creating/editing habits with target, frequency, type settings.
 - **HabitDetailView.swift:** Detailed view showing all entries for a habit with edit/delete.
-- **HabitTimerView.swift:** Timer interface for timed habits.
-- **HabitStreakBadge.swift:** Streak display component.
-- **HabitCard.swift:** Compact habit card for lists.
-- **DayDetailView.swift:** Sheet for viewing/editing a single day's entry.
+- **HabitTimerView.swift:** Timer interface for timed habits with start/pause/reset.
+- **HabitStreakBadge.swift:** Streak display component with flame icon.
+- **HabitCard.swift (352 lines):** Compact habit card for lists with quick-complete button.
+- **DayDetailView.swift (369 lines):** Sheet for viewing/editing a single day's entry with value input and notes.
 
 ### Shared/
 - **EmptyDetailView.swift (49 lines):** Reusable placeholder for empty selection states.
 - **DetailStatBox.swift (33 lines):** Compact stat display component.
-- **DetailInfoRow.swift:** Key-value row for detail views.
-- **AppCategoryPickerView.swift:** Reusable category selection picker.
+- **DetailInfoRow.swift:** Key-value row for detail views with label and value.
+- **AppCategoryPickerView.swift:** Reusable category selection picker with search.
 
 ### MenuBar/
 - **MenuBarView.swift (66 lines):** Compact popover view for menu bar status item. Shows activeAppName, formattedTime, and Open/Quit buttons.
@@ -202,13 +203,15 @@ let onDelete: () -> Void      // For delete confirmation
 - Enums: `SortOrder` (time/name/visits), `ViewMode` (calendar/list), `HabitFilter` (all/daily/weekly/monthly/archived)
 
 ### Output Types
-- Void (all views are View structs returning some View)
-- Side effects through database mutations
+- All views conform to SwiftUI's `View` protocol, returning `some View`
+- Callback closures use `Void` return type for side-effect-only operations
 
 ### Error Behavior
 - Empty states display friendly messages with action buttons
 - Deletion requires explicit confirmation overlay
-- Database errors silently log; UI shows empty states
+- Database errors silently log to console; UI shows empty states
+- NO skeleton loaders or spinners currently implemented (TODO)
+- NO retry mechanism for failed database operations
 
 ### Edge Cases
 - No categories: Show empty state with "Create Category" CTA
@@ -221,7 +224,7 @@ let onDelete: () -> Void      // For delete confirmation
 ### Idempotency Notes
 - Database create/update methods are idempotent (update-or-insert)
 - View reloads on database.lastUpdate change ensure consistency
-- Filter/sort/sort operations on filteredApps are purely functional with no side effects
+- Filter/sort operations on filteredApps are purely functional with no side effects
 
 ## 6. Internal Logic Details
 
@@ -323,14 +326,22 @@ struct WeeklyLogEntry: Identifiable {
 ### Validation Rules
 - Habit name: Non-empty, max 50 characters
 - Category name: Non-empty, unique, max 30 characters
-- Category color: Valid hex format "#RRGGBB"
+- Category color: Valid hex format "#RRGGBB" (uppercase, no alpha)
 - WeeklyLog task: Non-empty, max 200 characters
 - App name: Derived from system, read-only
+- Date ranges: Never allow selection of future dates in contribution grids
+
+### Date Extension Contracts
+- `Date.startOfWeek`: Returns Monday 00:00:00 for the week containing the date
+- `Date.startOfDay`: Returns 00:00:00 of the same calendar day
+- `Date.isToday`: True if same calendar day as current system date
+- `Date.shortDayName`: Three-letter uppercase day abbreviation ("MON", "TUE")
+- All date math uses `Calendar.current` with default system timezone
 
 ### Breaking-change risk areas
-- Database schema changes require migration logic
+- Database schema changes require migration logic in Core layer
 - AppState property additions must have default values for existing views
-- Category ID format change from UUID to lowercase string requires migration
+- AppUsage.categoryId stored as lowercase UUID string - do NOT change to uppercase
 
 ## 8. Failure Modes
 
@@ -377,6 +388,39 @@ struct WeeklyLogEntry: Identifiable {
 - PreviewProvider implementations use static sample data
 - Toggle dark/light mode via .colorScheme environment
 
+## 9.5 Platform Integration
+
+### Window Management
+- MainWindowView instantiated by AppDelegate or main entry point
+- Uses standard NSWindow with NavigationSplitView content
+- Minimum size: 900x600, default: 1200x800
+- WindowController responsibilities handled by SwiftUI lifecycle
+
+### Menu Bar Connection
+- MenuBarView rendered inside NSStatusItem popover
+- Popover created and managed by AppDelegate
+- View receives updates via AppState environment object
+
+### Dark/Light Mode
+- Supports both `.light` and `.dark` colorScheme via @Environment(\.colorScheme)
+- Current enforcement: "Warm Paper" theme applies to Habit section regardless of system setting
+- Other sections respect system preference
+- Brand colors must have sufficient contrast in both modes
+
+### Form Validation Strategy
+- Validation performed in view layer before calling database
+- Invalid state tracked via local @State (e.g., `isValid: Bool`, `validationError: String?`)
+- Error messages displayed inline below form fields
+- Save button disabled when form is invalid
+- Database layer does NOT re-validate (trusts caller)
+
+### Database.lastUpdate Contract
+- Publisher type: `@Published var lastUpdate: Date` on database singletons
+- Fires on: any create/update/delete operation
+- Does NOT fire on: read-only queries
+- Views observe via `.onChange(of: database.lastUpdate)` modifier
+- Resolution: millisecond precision timestamp
+
 ### How to test locally
 ```bash
 # Build the project
@@ -399,7 +443,11 @@ swift run Stride
 1. Add a new case to sidebarItems array in MainWindowView (line 14-22)
 2. Add corresponding index case in contentView @ViewBuilder switch (lines 85-105)
 3. Create new view folder under Views/ with descriptive name
-4. Implement view following existing patterns (onAppear load, @StateObject for database)
+4. Implement view following existing patterns:
+   - Use `@State private var data: [Model] = []` for local data storage
+   - Use `@State private var isLoading = false` for loading states
+   - Call load function in `.onAppear`
+   - DO NOT use `@StateObject` for database - use the shared singleton directly
 
 **Adding a new component:**
 1. Identify appropriate Shared/ subfolder or create feature-specific folder
@@ -421,16 +469,20 @@ swift run Stride
 
 ### Safe refactoring rules
 - Never change @State property names without updating all references
-- Preserve .animation() and .transition() timings
+- Animation timings follow guidelines, not hard requirements:
+  - Entrance animations: `.spring(response: 0.6, dampingFraction: 0.8)`
+  - Micro-interactions: `.spring(response: 0.3, dampingFraction: 0.7)`
+  - Sheet transitions: `.spring(response: 0.3, dampingFraction: 0.8)`
 - Keep design system constants in view scope (don't extract to globals)
 - Maintain sheet presentation pattern using item: binding
 
 ### Forbidden modifications
 - DO NOT add import SQLite3 to any view file
-- DO NOT create new @StateObject database properties (use shared singleton)
+- DO NOT use @StateObject for database access (use shared singletons)
 - DO NOT add network calls or external API logic
 - DO NOT bypass AppState for global state needs
 - DO NOT remove PreviewProvider implementations (they're documentation)
+- DO NOT add new @Published properties to AppState without default values
 
 ## 11. Extension Points
 
