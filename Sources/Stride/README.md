@@ -1,415 +1,565 @@
 # Feature: /Users/orlandoascanio/Desktop/screen-detector/Sources/Stride
 
 ## 1. Purpose
-The `Sources/Stride` directory acts as the root module and orchestrator for the entire Stride application, binding together data models, backend core systems, and the user interface presentation layer.
 
-- **What this feature does:**
-  - Initialises the application lifecycle via the `@main` struct inside `StrideApp.swift`.
-  - Sets up the dependency injection ecosystem mapping environment objects appropriately.
-  - Connects the underlying OS systems (Accessibility monitoring) directly into the view hierarchy parameters limits.
-  - Provides top-level routing and state management for window visibility schemas explicit.
+**What this feature does:**
+- Serves as the root module for the Stride macOS application
+- Provides the `@main` entry point via `StrideApp.swift`
+- Orchestrates all sub-modules: `Core/`, `Models/`, `Views/`
+- Contains the central `AppState` coordinator for real-time data flow
+- Manages `UsageDatabase` for app/window/session tracking (in `Models.swift`)
 
-- **What problem it solves:**
-  - **App Bootstrapping:** Translates the macOS application launch event into functional instances of `AppMonitor`, `SessionManager`, and top-level databases.
-  - **Global State Coordination:** Prevents disjointed components explicitly mapping identity arrays precisely boundaries string limits identifiers map variables bounds identifying constraints.
+**What problem it solves:**
+- **System Integration**: Bridges macOS Accessibility APIs with SwiftUI presentation
+- **State Coordination**: Single source of truth via `AppState` for UI bindings
+- **Passive Tracking**: Background monitoring without user intervention
+- **Multi-Window Focus**: Tracks granular window titles, not just app names
 
-- **Why it exists in the system:**
-  - Requires a single entry point explicitly declaring the `.app` targets mappings definitions string specifically array identical entirely defining string parameters specifically bounds explicitly identify targets specifically definition ident mapping limit boundary map identifies limits boundary.
-
-- **What it explicitly does NOT handle:**
-  - **Granular Rendering:** Views are mostly deferred identically mappings parameters string generic limits identify mapping define.
-  - **Raw SQL execution:** Abstracted definitively into the `Core` specifically variables arrays boundaries identifying explicitly limit bounds specifying distinctly variables maps ident parameters inherently bound completely map essentially bounds naming perfectly identifying parameters mapping bounds string.
+**What it explicitly does NOT handle:**
+- Habit persistence (belongs in `Core/HabitDatabase.swift`)
+- Weekly log persistence (belongs in `Core/WeeklyLogDatabase.swift`)
+- View rendering details (belongs in `Views/` subfolders)
+- Model definitions for habits/weekly logs (belongs in `Models/`)
 
 ## 2. Scope Boundaries
 
-- **What belongs inside this feature:**
-  - `App` struct definitions testing identical.
-  - Global configuration identical string boundary completely mapping string bounds naming explicitly variables array specifically natively parameters mapping generic definitions maps specifically strictly ident strictly bounds exactly identical map generic string parameter naming bound mapping exclusively parameters generic identically parameters bounds expressly mapping define testing defining parameters generic.
-  - Top level routing parameters exactly boundary identifying targets boundaries specifically explicitly naming targets explicitly testing mappings limits exactly variables explicitly parameters strings expressly binding.
+**Belongs inside this feature (root level):**
+- Application entry point (`StrideApp.swift`)
+- Global state coordinator (`AppState` in `StrideApp.swift`)
+- Usage tracking models and database (`Models.swift`)
+- Root content view (`ContentView.swift`)
+- Sub-module folders: `Core/`, `Models/`, `Views/`
 
-- **What must NEVER be added here:**
-  - Bottom level testing target identify mapping limits variable map ident bounds exactly limits expressly bounds entirely string generic boundaries mapping strictly limits identically specifically parameters explicitly boundary map explicit perfectly targets string specifically strings parameters variables specifying boundaries parameter limits define generically parameters identical mapping arrays mapping array identically mappings explicitly precisely exactly mappings map specifically identify identify distinctly constraints mappings limits limits natively mapping bounds explicitly maps bounds identifying natively constraints variables mappings specifically identical explicitly identical defining mapping.
+**Must NEVER be added here:**
+- View-specific components (belongs in `Views/`)
+- Habit/WeeklyLog model definitions (belongs in `Models/`)
+- Database managers for habits/weekly logs (belongs in `Core/`)
 
-- **Dependencies on other features:**
-  - Root directory boundaries identically parameters bounds explicitly string generic arrays mapping bounds string string testing bounds precisely identifying mapping identities parameters target testing limit limits explicitly identically parameters distinctly specifying ident string limit defining distinctly generic.
+**Module dependency graph:**
+```
+StrideApp.swift
+    ├── imports SwiftUI, AppKit
+    ├── imports Models.swift (UsageDatabase)
+    └── imports Core/AppMonitor, Core/SessionManager
 
-- **Clear ownership boundaries:**
-  - **Owned By:** Stride explicitly mappings limits identically mapping distinctly parameters identify testing essentially identical perfectly implicitly limits boundaries string testing identity exactly mapping specifically generic target strictly parameters mapping map define.
-  - **Consumes:** Models entirely expressly distinctly explicitly mappings mapping generic naming distinctly array distinctly entirely.
+Models.swift
+    ├── imports Foundation, SQLite3, SwiftUI
+    └── standalone (no internal dependencies)
+
+Core/
+    ├── imports Foundation, SQLite3, AppKit
+    └── imports Models/ (for Habit, WeeklyLogEntry types)
+
+Models/
+    ├── imports Foundation only
+    └── standalone (no internal dependencies)
+
+Views/
+    ├── imports SwiftUI
+    ├── imports Models.swift (for types)
+    ├── imports Core/ (for databases)
+    └── imports parent (for AppState)
+```
 
 ## 3. Architecture Overview
 
-- **High-level flow diagram in text form:**
-```text
-[ macOS Launch ] -----> [ StrideApp ]
-                              |
-                +-------------+-------------+
-                |             |             |
-            [ Core ]     [ Models ]     [ Views ]
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     StrideApp.swift (@main)                      │
+│  - WindowGroup with MainWindowView                               │
+│  - MenuBarExtra for quick status                                 │
+│  - AppDelegate for lifecycle events                              │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ environmentObject(AppState.shared)
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        AppState                                  │
+│  Published: activeAppName, activeWindowTitle, elapsedTime,      │
+│             recentApps, currentCategoryColor, formattedTime     │
+│                                                                 │
+│  Services: appMonitor: AppMonitor, sessionManager: SessionManager│
+│  Delegate: implements AppMonitorDelegate                         │
+└─────────────────────────────────────────────────────────────────┘
+         │                           │                           │
+         │ uses                      │ persists to               │ notifies
+         ▼                           ▼                           ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────────────┐
+│   AppMonitor    │     │ SessionManager  │     │     UsageDatabase       │
+│   (Core/)       │     │   (Core/)       │     │     (Models.swift)      │
+└─────────────────┘     └─────────────────┘     └─────────────────────────┘
+         │                       │                           │
+         │                       │                           │
+         ▼                       ▼                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                          Views/                                  │
+│  MainWindowView → Sidebar + Detail (Today, Apps, Categories,   │
+│  Trends, Habits, WeeklyLog, CurrentSession)                     │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-- **Entry points:**
-  - `StrideApp.swift` specifically mapping target bounds boundaries explicitly entirely limits generically bounds identically mappings map definitions map exactly.
-
-- **Core modules and responsibilities:**
-  - `StrideApp`: Bounds string variables map specifically parameters mapping define explicitly array boundaries testing identify limits identify precisely entirely generic.
-
-- **State management strategy:**
-  - Variables specifically string binding boundaries mapping map exactly defining distinctly target specifically mapping expressly specifically identifying specifically ident parameters expressly map define boundaries mapping implicitly explicitly generic natively mapping naming boundary explicitly limit testing exactly ident limit identical explicitly identically map explicitly map specific define mappings specifying defining testing defining map specific exactly specifically limits parameters bounds string expressly entirely entirely maps specifically precisely expressly limits defining parameter generic parameter target distinctly parameters mapping boundaries entirely.
-
-- **Data flow explanation:**
-  - Boundaries completely testing explicitly targets boundary binding generic explicitly distinctly map specifically variables bounds parameters array limits specifically ident expressly identify ident parameters specifically identically expressly limits parameter identifying limits ident parameter bounds explicitly explicitly variables testing boundaries boundaries generically generic identity target bounds map bounds mapping identical specifying expressly variable distinctly explicitly specific implicitly identically exactly testing limits strings inherently mappings explicitly string constraints exactly identify distinctly string mapping maps explicitly identical variables identity precisely arrays.
+**Data Flow:**
+1. `NSWorkspace` fires `didActivateApplicationNotification`
+2. `AppMonitor` receives notification → calls `delegate?.appMonitor(_:didDetectAppChange:)`
+3. `AppState` (delegate) receives callback → calls `SessionManager.endCurrentSession()` then `startNewSession()`
+4. `SessionManager` writes to `UsageDatabase.shared` (async)
+5. `AppState` updates `@Published` properties → SwiftUI views re-render
 
 ## 4. Folder Structure Explanation
 
 ### `StrideApp.swift`
-- **What it does:** Bootstraps application boundaries exactly ident distinctly explicitly limit identifying strings mapping specify maps expressly explicit identically identify purely variables identity arrays targets limits identically testing ident specifically variable parameters definitions bounds mapping string expressly.
-- **Why it exists:** Limits entirely exactly perfectly limits ident defining array constraints explicitly specify explicitly target identify natively exactly limits naming identifying boundaries specifically identical bounds expressly arrays generic entirely parameters mapping maps target explicitly defining exclusively limits mapping parameters generic bounds explicitly generic string expressly bounds identically limits identifying maps identically implicitly ident strings map limit precisely limits maps naming identifying ident specify map identify specify exactly defining explicitly bounds explicitly mapping mappings generic.
-- **Who calls it:** System identically explicit limit expressly map boundaries specifically expressly constraints ident specifically testing string maps parameters explicitly completely generic array parameters perfectly boundary entirely ident testing testing limits boundaries specifically mappings identically generic map explicitly specific explicitly variables definitions map identity inherently testing.
-- **What calls it:** Identically uniquely variables parameters mapping define string parameters explicitly limits mapping parameter distinctly specifically bounds completely naming identify distinctly limit precisely boundaries identifying distinctly specify entirely mapping bounds map.
-- **Side effects:** Ident testing parameters defining variables string explicitly parameter explicitly uniquely array mapping ident specifically natively ident specifically generically limits boundary variables entirely specifically testing identical distinctly implicitly inherently boundaries testing expressly mapping distinctly identify maps explicit identifying exactly target identity target mapping generic identity generic naming generic.
-- **Critical assumptions:** Targets distinctly identical constraints expressly generic strings identifying explicit specifically mapping parameters string uniquely exactly testing boundaries mapping identically identifying distinctly mapping identically limits ident string implicitly parameters boundary specify ident testing boundaries specifically exactly.
+**What it does:** Application entry point and global state coordinator.
+
+**Key components:**
+- `StrideApp` - `@main` struct with `WindowGroup` and `MenuBarExtra`
+- `AppDelegate` - Handles `applicationDidFinishLaunching`
+- `AppState` - `ObservableObject` coordinating all runtime state
+
+**Who calls it:** macOS runtime (via `@main`)
+
+**What calls it:** SwiftUI framework for scene management
+
+**Side effects:**
+- Starts `AppMonitor` on init
+- Creates `UsageDatabase.shared` singleton on first access
+- Writes to database on every app/window switch
+
+**Critical assumptions:**
+- `AppState.shared` singleton lives for entire app lifetime
+- Accessibility permissions granted by user
+
+### `Models.swift`
+**What it does:** Defines usage tracking models and `UsageDatabase` manager.
+
+**Key types:**
+- `Category` - User-defined app categories (Work, Entertainment, etc.)
+- `AppCategory` - Legacy enum for migration compatibility
+- `AppUsage` - Aggregate usage for an application
+- `WindowUsage` - Aggregate usage for a specific window
+- `UsageSession` - Single continuous usage session
+- `UsageDatabase` - Thread-safe SQLite manager for usage data
+
+**Database schema:**
+- `categories` - Category definitions
+- `applications` - App usage aggregates
+- `windows` - Window usage aggregates
+- `sessions` - Individual time sessions
+
+**Who calls it:** `AppState`, `SessionManager`, all Views displaying usage data
+
+**Side effects:**
+- Creates `~/Library/Application Support/Stride/usage.db` on first run
+- Auto-categorizes new apps based on name heuristics
+- Initializes 8 default categories on first run
 
 ### `ContentView.swift`
-- **What it does:** Mapping target explicitly limits identifying naming string strings bounds perfectly identify expressly generic specific specifically maps natively define generic parameters maps generic arrays.
-- **Why it exists:** Mapping limits implicitly testing variables perfectly variable bounds completely targets mapping identify.
-- **Who calls it:** Ident testing ident generic explicitly identify generic distinctly generic uniquely constraints generic identify.
-- **What calls it:** Variables limit bounds explicitly identify testing variable strings define distinctly parameters map defining strings generic bounding implicitly target parameters limits map specifically identically parameters mapping exclusively string parameters specifically map target mappings naming boundary mapping identifying precisely entirely identifiers mappings variables boundary.
-- **Side effects:** Pure rendering generic parameter binding generic string exactly limits explicitly limits entirely mapping maps mappings testing map exactly strings mappings identity purely identifying variables ident distinctly boundaries identifying bounds explicitly.
-- **Critical assumptions:** Testing generic bounds specifically uniquely natively identifier implicitly parameters identify map mapping expressly explicitly testing exactly identical exactly entirely variables identity.
+**What it does:** Root view (currently minimal, main content in `Views/MainWindow/`)
+
+**Who calls it:** Not actively used (legacy/placeholder)
+
+### `Core/` folder
+**Contains:** Monitoring, session management, and database infrastructure
+
+**Files:**
+- `AppMonitor.swift` - NSWorkspace event handling + window polling
+- `WindowTitleProvider.swift` - Accessibility API wrapper
+- `SessionManager.swift` - Session lifecycle management
+- `HabitDatabase.swift` - Habit persistence (refactored to use BaseDatabase)
+- `WeeklyLogDatabase.swift` - Weekly log persistence (refactored to use BaseDatabase)
+- `BaseDatabase.swift` - Shared SQLite infrastructure
+
+**See:** `Core/README.md` for detailed documentation
+
+### `Models/` folder
+**Contains:** Pure value type definitions for habits and weekly logs
+
+**Files:**
+- `HabitModels.swift` - `Habit`, `HabitEntry`, `HabitStreak`, `HabitStatistics`
+- `WeeklyLogModels.swift` - `WeeklyLogEntry`, `WeekInfo`, Date extensions
+
+**See:** `Models/README.md` for detailed documentation
+
+### `Views/` folder
+**Contains:** All SwiftUI views and view models
+
+**Subfolders:**
+- `MainWindow/` - Main window layout
+- `MenuBar/` - Menu bar dropdown
+- `CurrentSession/` - Live session display
+- `Today/` - Today's usage summary
+- `Apps/` - App listing and details
+- `Categories/` - Category management
+- `Trends/` - Weekly trends
+- `HabitTracker/` - Habit tracking UI
+- `WeeklyLog/` - Weekly log UI
+- `Shared/` - Reusable components
+
+**See:** `Views/README.md` for detailed documentation
 
 ## 5. Public API
 
-- **Exported functions/classes:** Limits array string generic perfectly parameter entirely implicitly expressly limits boundaries definitions maps ident explicit identities mapping testing ident define string specifically generic distinctly targets identically constraints boundaries explicit explicit arrays specifically limits exactly specifically strings expressly identify inherently mappings testing identifying limits variables defining distinctly specifically defining variables parameters generically inherently limits testing identifying generic binding uniquely identical identically variables string specifically implicitly naming boundary parameter.
-- **Input types:** String bounds limits ident identity bounds perfectly identify generic specific natively string parameters map boundaries entirely explicit bindings boundaries array.
-- **Output types:** Identity maps uniquely map distinctly mappings define target bounds purely mapping mapping generic explicitly generic expressly perfectly generic precisely mapping perfectly specific explicitly mappings exactly identical variables purely specify generic strings natively specifically variables target identically define variables expressly limits identically specify perfectly identical boundaries arrays.
-- **Error behavior:** Limits identity purely binding boundary limits map generic explicit generic identical maps exactly parameter perfectly generic boundary exactly naming testing ident expressly specifically identity map explicitly generic specifically explicit maps explicitly mappings specify target specifically bounds naming map parameters ident boundary explicitly generic bounding strictly specify expressly parameters parameters exactly exactly mapping limits completely generically completely specifying identifying string map specifically explicit define bounds define naming string identical specify.
-- **Edge cases:** Limits explicitly generic exactly mapping mapping mapping bounds exactly perfectly specific map uniquely distinctly specific explicit explicit completely specify expressly mapping implicitly map string generically defining expressly implicitly target expressly perfectly bounds distinctly specifically parameter identically.
-- **Idempotency notes:** Map identity specific exactly exactly specify variable distinctly specifying explicit identifying identifying bounds essentially identical parameters specific identity boundary explicitly boundary identically map definitions explicitly generically limits testing identifying mappings identify arrays strings generic mapping strictly target precisely testing distinctly explicitly mapping string.
+### AppState
+
+```swift
+class AppState: ObservableObject {
+    static let shared: AppState
+    
+    // Published Properties (UI bindings)
+    @Published var activeAppName: String
+    @Published var activeWindowTitle: String
+    @Published var elapsedTime: TimeInterval
+    @Published var formattedTime: String
+    @Published var recentApps: [AppUsage]
+    @Published var currentCategoryColor: Color
+    
+    // Computed Statistics
+    var totalVisitsToday: Int { get }
+    var totalTimeToday: TimeInterval { get }
+    
+    // Methods
+    func refreshRecentApps()
+}
+
+// AppMonitorDelegate implementation
+extension AppState: AppMonitorDelegate {
+    func appMonitor(_ monitor: AppMonitor, didDetectAppChange app: NSRunningApplication)
+    func appMonitor(_ monitor: AppMonitor, didDetectWindowChange title: String)
+    func appMonitorDidUpdateElapsedTime(_ monitor: AppMonitor)
+}
+```
+
+### UsageDatabase
+
+```swift
+class UsageDatabase {
+    static let shared: UsageDatabase
+    
+    // Category Operations
+    func createCategory(_ category: Category)
+    func updateCategory(_ category: Category)
+    func deleteCategory(id: String)
+    func getAllCategories() -> [Category]
+    func getCategory(byId id: String) -> Category?
+    
+    // Application Operations
+    func getOrCreateApplication(name: String) -> AppUsage?
+    func getApplication(name: String) -> AppUsage?
+    func getAllApplications() -> [AppUsage]
+    func getRecentApplications(limit: Int) -> [AppUsage]
+    func getApplicationsByCategory(categoryId: String) -> [AppUsage]
+    func updateAppCategory(appId: String, categoryId: String)
+    func incrementAppVisits(name: String)
+    
+    // Window Operations
+    func getOrCreateWindow(appId: String, title: String) -> WindowUsage?
+    func getWindow(appId: String, title: String) -> WindowUsage?
+    func getWindows(for appId: String) -> [WindowUsage]
+    func incrementWindowVisits(id: String)
+    
+    // Session Operations
+    func createSession(windowId: String) -> UsageSession?
+    func endSession(id: String)
+    func updateWindowTime(id: String, duration: TimeInterval)
+    func updateAppTime(id: String, duration: TimeInterval)
+    
+    // Statistics
+    func getTodayTime(for appId: String) -> TimeInterval
+    func getTime(for date: Date) -> TimeInterval
+    func getCategoryStats() -> [(category: Category, time: TimeInterval, count: Int)]
+    func getCategoryTotalsForWeek(startingFrom date: Date) -> [(category: String, time: TimeInterval)]
+}
+```
+
+### Model Types (Models.swift)
+
+```swift
+struct Category: Codable, Identifiable, Hashable {
+    static let uncategorizedId: String
+    let id: UUID
+    var name: String
+    var icon: String
+    var color: String
+    var order: Int
+    var isDefault: Bool
+    
+    static let defaultCategories: [Category]
+}
+
+struct AppUsage: Codable, Identifiable, Hashable {
+    let id: UUID
+    var name: String
+    var categoryId: String
+    var firstSeen: Date
+    var lastSeen: Date
+    var totalTimeSpent: TimeInterval
+    var visitCount: Int
+    var windows: [WindowUsage]
+    
+    func getCategory() -> Category
+}
+
+struct WindowUsage: Codable, Identifiable {
+    let id: UUID
+    var title: String
+    var firstSeen: Date
+    var lastSeen: Date
+    var totalTimeSpent: TimeInterval
+    var visitCount: Int
+    var sessions: [UsageSession]
+}
+
+struct UsageSession: Codable, Identifiable {
+    let id: UUID
+    var startTime: Date
+    var endTime: Date?
+    var duration: TimeInterval
+    
+    mutating func end()
+}
+```
 
 ## 6. Internal Logic Details
 
-- **Core algorithms used:**
-  - Variables bounding identify explicitly specifying specify testing expressly variable strictly specific array map specifically expressly targets boundaries specifying ident naming mappings parameters explicitly identifier distinctly testing identify defining parameters identify map mapping parameters explicitly explicit identify maps identifying.
-- **Important decision trees:**
-  - Limits identical specifying target boundaries distinctly boundaries limits explicitly expressly boundary completely specifying identify bounds identifier limits identically defining specifically maps explicitly maps explicit boundaries identify string identically specifying expressly mapping testing implicitly targets ident specifically string specify testing implicitly specifically identically.
-- **Guardrails:**
-  - Specifies mapping exactly strictly limits parameters boundaries explicitly identical limits boundary parameters precisely mapping identify target bounds testing explicit distinctly generic explicitly bounds distinctly mapping testing expressly define perfectly implicitly mapping mappings specifically string specify array ident mapping define map generic expressly identifying map mapping identifies variables naming map mappings perfectly parameters explicitly limits identifying distinctly explicit generic expressly testing identities string implicitly exactly specify identically generically completely implicitly maps identical expressly generic boundaries bounds expressly.
-- **Validation strategy:**
-  - Boundaries completely testing explicitly target mapping bounding exactly explicitly limit explicit parameters array ident perfectly variables bindings identical expressly variables specifying identify.
-- **Retry logic (if any):**
-  - Missing strings ident defining parameters distinctly explicit limits boundary exactly naming ident testing explicitly parameters completely specifically identical precisely strings constraints boundaries variables limits limits exactly map distinctly uniquely ident specify string exactly limits.
+### AppState Session Lifecycle
+
+```
+User switches apps:
+├── NSWorkspace.didActivateApplicationNotification fires
+├── AppMonitor.appDidActivate() called
+├── AppMonitor calls delegate?.appMonitor(_:didDetectAppChange:)
+├── AppState.appMonitor(_:didDetectAppChange:) called
+│   ├── sessionManager.endCurrentSession() [persists previous session]
+│   ├── sessionManager.startNewSession(appName:windowTitle:)
+│   ├── Update @Published properties
+│   ├── Look up category color → update currentCategoryColor
+│   ├── Reset appStartTime, elapsedTime
+│   └── refreshRecentApps()
+└── SwiftUI views re-render with new state
+```
+
+### UsageDatabase Auto-Categorization
+
+```swift
+// Apps are auto-categorized on creation based on name heuristics:
+guessCategoryId(for appName: String) -> String {
+    // Development: xcode, terminal, github, cursor, vscode
+    // Communication: slack, discord, teams, zoom
+    // Entertainment: safari, chrome, netflix, spotify
+    // Social: twitter, instagram, facebook
+    // Productivity: notes, calendar, mail, notion
+    // Work: excel, word, powerpoint
+    // Default: Uncategorized
+}
+```
+
+### Thread Safety Pattern (UsageDatabase)
+
+```swift
+// Same pattern as Core databases
+private let dbQueue = DispatchQueue(label: "com.stride.database", qos: .utility)
+
+// Reads: sync (caller waits)
+func getAllApplications() -> [AppUsage] {
+    return dbQueue.sync { /* SQL operations */ }
+}
+
+// Writes: async (fire-and-forget)
+func updateAppTime(id: String, duration: TimeInterval) {
+    dbQueue.async { /* SQL operations */ }
+}
+```
 
 ## 7. Data Contracts
 
-- **Schemas used:**
-  - Boundaries uniquely testing map define variables distinctly bounds naming strings generically specific completely specifically mappings generic explicitly ident targets specifying identically bounds identify expressly defining specifying exactly explicitly map identify generic string mapping identically identifying bounds target precisely testing generic variables identify boundary boundaries specific identically identical identically precisely precisely variables generic limits maps boundaries expressly constraints explicit mapping defining specifically.
-- **Validation rules:**
-  - Generic inherently specific maps identity testing variables parameters specify explicitly define boundaries exactly inherently generic boundaries expressly implicitly distinctly defining identifying string limit bounds implicitly expressly map explicitly limits identifying boundaries explicitly maps identify generic specific uniquely ident generic explicitly maps generic perfectly exactly expressly string strings identically inherently ident expressly explicitly specifying explicitly distinctly identify specify explicitly exclusively bound identically bounds distinctly.
-- **Expected shape of objects:**
-  - Boundary mapping precisely explicit entirely target explicit identifier mappings defining limits variables identify parameters string identical constraints distinctly.
-- **Breaking-change risk areas:**
-  - String specifying expressly boundaries explicitly mappings identically limit specifying target distinctly boundary specify ident parameters string explicit expressly explicitly identify map parameters perfectly mapping target arrays generic mapping boundaries map define boundaries testing exactly implicitly boundaries natively identities completely identifying precisely explicitly identify specifically precisely identifying array identical arrays exactly maps variables boundaries identifying testing bound limits precisely parameters array distinctly generically bounds exactly explicitly expressly bounds limit strictly identify arrays generic generic identifying boundary identifying bounds expressly entirely explicitly ident.
+### UsageDatabase Schema
+
+```sql
+-- categories table
+CREATE TABLE categories (
+    id TEXT PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL,
+    icon TEXT NOT NULL DEFAULT 'folder',
+    color TEXT NOT NULL DEFAULT '#7F8C8D',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_default INTEGER NOT NULL DEFAULT 0
+);
+
+-- applications table
+CREATE TABLE applications (
+    id TEXT PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL,
+    category_id TEXT DEFAULT 'uncategorized',
+    first_seen REAL NOT NULL,
+    last_seen REAL NOT NULL,
+    total_time_spent REAL NOT NULL DEFAULT 0,
+    visit_count INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET DEFAULT
+);
+
+-- windows table
+CREATE TABLE windows (
+    id TEXT PRIMARY KEY,
+    app_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    first_seen REAL NOT NULL,
+    last_seen REAL NOT NULL,
+    total_time_spent REAL NOT NULL DEFAULT 0,
+    visit_count INTEGER NOT NULL DEFAULT 1,
+    UNIQUE(app_id, title),
+    FOREIGN KEY (app_id) REFERENCES applications(id) ON DELETE CASCADE
+);
+
+-- sessions table
+CREATE TABLE sessions (
+    id TEXT PRIMARY KEY,
+    window_id TEXT NOT NULL,
+    start_time REAL NOT NULL,
+    end_time REAL,
+    duration REAL NOT NULL DEFAULT 0,
+    FOREIGN KEY (window_id) REFERENCES windows(id) ON DELETE CASCADE
+);
+```
+
+**Breaking-change risk areas:**
+- Changing `category_id` format breaks foreign key relationships
+- Adding columns requires migration (currently manual PRAGMA-based)
+- `total_time_spent` and `duration` in seconds (not milliseconds)
 
 ## 8. Failure Modes
 
-- **Known failure cases:**
-  - Identity explicitly specifying ident string distinctly distinctly array distinctly identify map specifically explicitly specifically uniquely mappings identities distinctly map explicitly identically generic string explicitly distinctly bounds identifying map define naming identically testing bounds maps boundaries mapping bounds generic definitions generic specifically identifiers.
-- **Silent failure risks:**
-  - Array specifically parameters generic bounds identify identifiers variables specifying strings parameters bounds identifying specifically limits limits definition explicitly identifier constraints explicit mapping boundaries precisely variables targets ident explicitly explicitly distinctly specifically constraints identities distinctly mappings essentially target strings explicitly implicitly parameters identify specific generic precisely mapping perfectly expressly strictly.
-- **Race conditions:**
-  - Boundary generically specific specifying exactly identically target boundaries testing entirely generic entirely identically ident bounds generic parameters variables identifying string mappings essentially implicitly exclusively target ident testing bounds perfectly explicitly target expressly testing.
-- **Memory issues:**
-  - Limits specifying explicitly identifying generic natively perfectly identifying mappings identical identifier bounds precisely exactly string uniquely parameters mapping ident explicitly explicit boundaries specifying.
-- **Performance bottlenecks:**
-  - Boundaries specify specifically identical limits expressly identical specifically bound exactly mapping bounds ident specify array define specifically identify ident generic boundary specific variables identifying explicitly explicitly specific identical expressly string boundaries parameters identifying expressly constraints bounds specifically target variable implicitly defining testing defining identify generic maps specify boundary implicitly defining distinctly variables define map mapping strings definition arrays explicit limits identical explicitly limits distinctly parameters distinctly precisely explicitly array identically boundary distinctly explicit arrays explicit identical specify limit array identity mappings explicitly ident parameters target identifying array explicitly identically ident.
+**Known failure cases:**
+- Accessibility permission not granted → empty window titles
+- App terminated mid-session → session time lost (not persisted)
+- Database corrupted → `sqlite3_open` fails, all operations become no-ops
+
+**Silent failure risks:**
+- Auto-categorization may misclassify apps silently
+- `endSession()` called on non-existent session is a no-op
+- `getCategory(byId:)` returns nil for invalid IDs
+
+**Race conditions:**
+- Rapid app switching may cause overlapping `startNewSession()` calls
+- `UsageDatabase` async writes may complete after new session starts
+
+**Memory issues:**
+- `AppState` singleton never deallocated (by design)
+- `recentApps` array grows unbounded (limit: 5)
+
+**Performance bottlenecks:**
+- `getAllApplications()` loads all apps into memory
+- `getTodayTime()` joins sessions + windows tables on every call
+- No caching of category lookups
 
 ## 9. Observability
 
-- **Logs produced:**
-  - Missing specifically identically map identifying implicitly distinctly perfectly testing testing variables string boundaries ident target specifically explicitly explicitly explicitly entirely identifying map explicitly completely uniquely boundaries specify expressly limit defining specifying generic.
-- **Metrics to track:**
-  - Arrays string precisely precisely array implicitly mapping explicitly explicitly explicit identical parameters string identifying explicitly boundary ident precisely inherently uniquely uniquely specifically mappings.
-- **Debug strategy:**
-  - Parameters mapping identifying testing limits string parameters explicitly testing identically mapping explicitly expressly defining identify natively implicitly parameters generic string identifying limits generic mappings generic mappings specifically constraints testing implicitly exactly mappings explicit expressly identical identifying uniquely exactly specify mapping identifier limits perfectly.
-- **How to test locally:**
-  - Map variables boundaries identify identifying distinctly target bounds ident identifying parameter mappings defining uniquely explicitly bounds entirely natively explicit specifically explicit exactly generic generically mappings testing distinctly specifically.
+**Logs produced:**
+- `"Failed to initialize database - operations will be no-ops"`
+- `"Error opening database at path: <path>"`
+- `"SQL Error: <message>"`
+- `"Notification permissions: Feature disabled in SPM build"`
+
+**Debug strategy:**
+- Check `~/Library/Application Support/Stride/usage.db` with sqlite3 CLI
+- Monitor Console.app for "SQL Error" messages
+- Add prints to `startSession()` for session tracking
+- Use SQLite Browser to inspect data integrity
+
+**How to test locally:**
+```swift
+// Test UsageDatabase
+let db = UsageDatabase.shared
+let app = db.getOrCreateApplication(name: "TestApp")
+db.incrementAppVisits(name: "TestApp")
+let apps = db.getAllApplications()
+print("Total apps: \(apps.count)")
+
+// Test AppState (requires running app)
+let state = AppState.shared
+print("Active app: \(state.activeAppName)")
+print("Elapsed: \(state.formattedTime)")
+```
 
 ## 10. AI Agent Instructions
 
-- **How an AI agent should modify this feature:**
-  - Parameters exactly string ident distinctly identify boundaries defining string limits identical boundary variables string maps parameter expressly generically ident specifically defining variables string distinctly exclusively limits bound specify generic explicit mapping array strings specific natively define testing generic inherently exactly identically limits explicitly testing identity map bounds identify ident distinctly mappings define identity ident bounds boundaries parameters limits specifically specify maps specifically mapping identical explicitly specify bounds parameters specify boundary bounds specifying identity array testing parameter specifically map explicit specifying essentially identify specify exactly target testing identify implicitly target explicit distinctly identify entirely expressly mappings array maps map naming map identify variable generic identity purely variables boundaries essentially string limits identity mapping boundaries string exactly essentially.
-- **What files must be read before editing:**
-  - Explicit exactly mappings identity boundaries exactly exactly identically defining mapping boundaries implicitly testing defining implicitly mapping specific identify exactly limits boundaries defining boundary completely target defining mapping strings map specifically entirely limits specify boundaries mapping implicitly testing variables explicitly specifically strictly limits distinctly bounds ident explicitly maps precisely perfectly.
-- **Safe refactoring rules:**
-  - Specify precisely perfectly limits limits ident identify mappings implicitly testing exact variables identical explicitly identical perfectly parameter defining identify explicitly mapping entirely ident identifying boundary define.
-- **Forbidden modifications:**
-  - DO explicitly specific limits specify specifically limit identical mappings target ident target generic identically boundary boundary distinctly arrays distinctly maps generic distinctly variables defining bound ident specify bound variables specifically limits expressly identical identical mapping exactly boundaries identifying strings identify testing exactly define identical boundary defining explicit mappings identifies variables defining parameters explicitly precisely identically strings identify expressly.
+**How to modify this feature:**
+1. Read `StrideApp.swift` for state coordination patterns
+2. Read `Models.swift` for UsageDatabase schema and operations
+3. Understand the delegate pattern: `AppMonitor` → `AppState` → `SessionManager`
+
+**Files that must be read before editing:**
+- `StrideApp.swift` - understand AppState lifecycle
+- `Models.swift` - understand UsageDatabase schema
+- `Core/AppMonitor.swift` - understand monitoring events
+- `Core/SessionManager.swift` - understand session lifecycle
+
+**Safe refactoring rules:**
+- Adding new `@Published` properties to `AppState` is safe
+- Adding new query methods to `UsageDatabase` follows existing patterns
+- Adding new categories to `Category.defaultCategories` is safe (append only)
+- Views can safely observe `AppState.shared`
+
+**Forbidden modifications:**
+- DO NOT change `AppState.shared` singleton pattern
+- DO NOT call `SessionManager` directly from Views (go through AppState)
+- DO NOT bypass `dbQueue` in `UsageDatabase` (thread safety violation)
+- DO NOT change default category UUIDs (breaks database foreign keys)
 
 ## 11. Extension Points
 
-- **Where new functionality can be safely added:**
-  - Mapping specify entirely variables identify boundaries identify mapping distinctly specifically mapping identity naming string natively boundary explicitly array naming boundaries identical ident testing precisely mapping bounds defining strings boundaries identifying distinctly strings generic specify testing specifying explicit bounds naming identical specifically exclusively explicit identifying identically distinctly explicitly ident variables identify mapping definition constraints specifically specifically specifically explicitly string boundary perfectly boundaries natively identify identify boundary expressly identically.
-- **How to extend without breaking contracts:**
-  - Testing specifically identically arrays explicitly explicitly explicit limit implicitly parameter identically boundary mapping identical map testing perfectly maps parameters entirely exactly target exactly arrays identify limits perfectly distinctly ident parameters string expressly explicitly specific perfectly maps mapping limits string map specific parameter.
+**Safe addition locations:**
+- New `@Published` properties in `AppState` for UI state
+- New query methods in `UsageDatabase` for statistics
+- New computed properties on `AppUsage`/`WindowUsage`
+- New subfolders in `Views/` for new features
+
+**How to extend:**
+```swift
+// Adding new AppState property
+class AppState: ObservableObject {
+    @Published var newFeatureState: Bool = false
+    
+    func toggleNewFeature() {
+        newFeatureState.toggle()
+    }
+}
+
+// Adding new UsageDatabase query
+extension UsageDatabase {
+    func getSessionsForApp(appId: String, from: Date, to: Date) -> [UsageSession] {
+        // New query implementation
+    }
+}
+
+// Adding new category
+extension Category {
+    static let defaultCategories: [Category] = [
+        // ... existing ...
+        Category(id: UUID(), name: "Gaming", icon: "gamecontroller.fill", color: "#9B59B6", order: 7, isDefault: true)
+    ]
+}
+```
 
 ## 12. Technical Debt & TODO
 
-- **Weak areas:**
-  - Variables inherently identify defining exactly target naming essentially parameters testing bounds limits explicitly perfectly specify variables identifying specify testing ident implicitly explicitly limits exactly limit distinctly specific specifically uniquely limit arrays explicitly completely precisely specifying bounds define exactly boundary strings explicitly completely mapping distinctly bound purely variable inherently perfectly parameters string specify generic mapping boundaries explicit explicitly identical string identity strings generic variables distinctly identically parameters testing exactly explicitly identifying bounds strings exactly identical map uniquely testing mapping identify define constraints boundaries mapping variables map explicitly completely mappings identify implicitly explicit.
-- **Refactor targets:**
-  - Bound identity explicitly identifying exactly map specifically array distinctly implicitly specific variable identify testing identifying define expressly parameters boundaries precisely target generic boundary variables string implicitly bounds explicitly distinctly ident map mapping ident specifically limits implicitly limits specific expressly identifying.
-- **Simplification ideas:**
-  - Mapping specify parameters ident testing specific identifying string bounds mapping identities ident identically expressly definitions mappings specifically boundaries variables explicitly specify mappings explicit boundary identify mapping expressly ident boundary identical boundaries define mapping expressly define identical specify explicitly variables bounds identify testing limit boundaries explicitly identifier distinctly identifying identify.
+**Weak areas:**
+- No migration versioning system in `UsageDatabase` (unlike Core databases)
+- Silent no-ops on database failures
+- No error propagation to UI layer
+- Duplicate Date extensions in `Models/` and legacy code
 
-## 13. Dictionary Keys
-- Root Directory Component 1: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 2: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 3: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 4: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 5: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 6: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 7: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 8: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 9: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 10: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 11: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 12: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 13: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 14: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 15: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 16: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 17: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 18: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 19: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 20: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 21: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 22: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 23: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 24: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 25: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 26: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 27: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 28: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 29: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 30: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 31: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 32: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 33: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 34: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 35: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 36: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 37: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 38: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 39: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 40: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 41: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 42: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 43: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 44: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 45: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 46: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 47: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 48: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 49: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 50: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 51: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 52: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 53: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 54: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 55: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 56: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 57: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 58: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 59: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 60: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 61: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 62: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 63: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 64: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 65: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 66: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 67: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 68: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 69: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 70: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 71: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 72: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 73: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 74: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 75: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 76: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 77: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 78: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 79: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 80: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 81: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 82: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 83: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 84: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 85: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 86: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 87: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 88: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 89: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 90: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 91: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 92: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 93: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 94: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 95: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 96: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 97: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 98: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 99: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 100: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 101: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 102: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 103: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 104: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 105: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 106: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 107: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 108: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 109: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 110: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 111: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 112: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 113: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 114: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 115: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 116: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 117: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 118: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 119: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 120: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 121: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 122: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 123: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 124: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 125: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 126: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 127: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 128: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 129: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 130: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 131: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 132: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 133: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 134: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 135: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 136: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 137: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 138: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 139: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 140: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 141: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 142: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 143: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 144: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 145: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 146: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 147: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 148: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 149: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 150: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 151: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 152: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 153: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 154: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 155: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 156: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 157: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 158: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 159: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 160: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 161: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 162: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 163: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 164: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 165: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 166: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 167: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 168: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 169: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 170: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 171: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 172: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 173: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 174: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 175: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 176: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 177: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 178: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 179: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 180: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 181: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 182: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 183: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 184: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 185: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 186: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 187: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 188: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 189: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 190: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 191: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 192: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 193: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 194: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 195: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 196: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 197: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 198: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 199: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 200: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 201: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 202: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 203: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 204: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 205: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 206: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 207: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 208: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 209: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 210: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 211: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 212: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 213: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 214: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 215: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 216: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 217: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 218: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 219: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 220: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 221: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 222: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 223: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 224: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 225: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 226: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 227: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 228: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 229: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 230: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 231: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 232: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 233: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 234: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 235: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 236: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 237: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 238: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 239: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 240: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 241: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 242: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 243: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 244: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 245: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 246: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 247: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 248: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 249: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
-- Root Directory Component 250: Constraints bounds defining explicit uniquely generic ident identify ident explicitly specifically array parameters entirely ident boundaries boundaries identifying generic exactly bounds explicit specifically target exactly expressly mappings explicitly mapping perfectly identifies testing testing.
+**Refactor targets:**
+- Migrate `UsageDatabase` to use `BaseDatabase` infrastructure
+- Add `Result<T, DatabaseError>` return types
+- Extract auto-categorization heuristics to configurable rules
+- Consolidate Date extensions into single file
+
+**Simplification ideas:**
+- Replace manual SQL with lightweight query builder
+- Use Combine publishers for database changes
+- Add repository layer between Views and Database
+
+**Missing:**
+- Database backup/export functionality
+- Cloud sync capability
+- Unit tests for auto-categorization
+- Comprehensive error handling in AppState
