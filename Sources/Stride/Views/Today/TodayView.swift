@@ -70,8 +70,13 @@ struct TodayView: View {
                     // MARK: 2. Summary KPI Grid
                     metricsGrid
                     
-                    if !applications.isEmpty {
-                        // MARK: 3. Distribution & Rankings
+                    if !applications.isEmpty || !todayStats.browserDomains.isEmpty {
+                        // MARK: 3. Web Activity (if any browser usage)
+                        if !todayStats.browserDomains.isEmpty {
+                            webActivitySection
+                        }
+                        
+                        // MARK: 4. Distribution & Rankings
                         HStack(alignment: .top, spacing: 32) {
                             categoryDistributionSection
                                 .frame(maxWidth: .infinity)
@@ -249,6 +254,27 @@ struct TodayView: View {
     }
     
     /**
+     * Web Activity section showing top domains visited in browsers.
+     */
+    private var webActivitySection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("WEB ACTIVITY")
+                .font(.system(size: 11, weight: .bold))
+                .tracking(1.5)
+                .foregroundColor(secondaryText)
+            
+            VStack(spacing: 12) {
+                ForEach(Array(todayStats.browserDomains.prefix(5))) { domain in
+                    BrowserDomainRow(domain: domain, totalTime: totalTime)
+                }
+            }
+        }
+        .opacity(isLoaded ? 1 : 0)
+        .offset(y: isLoaded ? 0 : 30)
+        .animation(DesignSystem.Animation.entrance.spring.delay(0.35), value: isLoaded)
+    }
+    
+    /**
      * A vertical list of the most utilized applications for today.
      */
     private var topAppsSection: some View {
@@ -330,12 +356,19 @@ struct TodayView: View {
             
             // Single batch query - gets all today's data at once
             let todayStatsMap = database.getTodayStats()
+            let browserDomains = database.getTodayBrowserDomains()
             
             // Get all apps and filter/sort using cached stats
             let allApps = database.getAllApplications()
             let appsWithStats = allApps.compactMap { app -> TodayStats.AppStats? in
                 guard let stats = todayStatsMap[app.id.uuidString] else { return nil }
                 guard stats.active > 0 || stats.passive > 0 else { return nil }
+                
+                // Exclude browsers (they're shown as domains instead)
+                if app.isBrowser {
+                    return nil
+                }
+                
                 return TodayStats.AppStats(
                     app: app,
                     activeTime: stats.active,
@@ -343,9 +376,14 @@ struct TodayView: View {
                 )
             }.sorted { $0.activeTime > $1.activeTime }
             
-            // Calculate totals
-            let totalActive = appsWithStats.reduce(0) { $0 + $1.activeTime }
-            let totalPassive = appsWithStats.reduce(0) { $0 + $1.passiveTime }
+            // Calculate totals (including browser domains)
+            let appActiveTime = appsWithStats.reduce(0) { $0 + $1.activeTime }
+            let appPassiveTime = appsWithStats.reduce(0) { $0 + $1.passiveTime }
+            let browserActiveTime = browserDomains.reduce(0) { $0 + $1.activeTime }
+            let browserPassiveTime = browserDomains.reduce(0) { $0 + $1.passiveTime }
+            
+            let totalActive = appActiveTime + browserActiveTime
+            let totalPassive = appPassiveTime + browserPassiveTime
             let totalVisits = appsWithStats.reduce(0) { $0 + $1.app.visitCount }
             
             // Calculate category breakdown
@@ -358,6 +396,7 @@ struct TodayView: View {
             
             return TodayStats(
                 apps: appsWithStats,
+                browserDomains: browserDomains,
                 totalActiveTime: totalActive,
                 totalPassiveTime: totalPassive,
                 totalVisits: totalVisits,
