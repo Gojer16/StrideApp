@@ -141,6 +141,7 @@ struct HabitGridCard: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(Capsule().fill(Color.black.opacity(0.04)))
+            .help(streakTooltip)
             
             // Chevron collapse button
             Button(action: {
@@ -202,6 +203,17 @@ struct HabitGridCard: View {
                 .font(.system(size: 8, weight: .black))
                 .foregroundColor(secondaryText)
                 .tracking(1)
+        }
+    }
+    
+    private var streakTooltip: String {
+        if streak.currentStreak == 0 {
+            return "No active streak. Complete this habit to start a new streak!"
+        } else if streak.isActive {
+            let status = streak.lastCompletedDate?.isToday == true ? "Completed today" : "Completed yesterday"
+            return "\(status) • \(streak.currentStreak) day streak\nActive: completed today or yesterday. Resets if you miss 2 days in a row."
+        } else {
+            return "\(streak.currentStreak) day streak (inactive)\nComplete today to reactivate your streak!"
         }
     }
 }
