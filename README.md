@@ -14,6 +14,7 @@ A macOS application that tracks your active application and window usage time. S
 - **Application Statistics**: Total time spent, visit count, first/last seen dates for each app
 - **Window History**: Track time spent in specific windows/tabs
 - **Today View**: Editorial summary of today's core KPIs (Active Time, App Switches, Total Apps) with category distribution and top app rankings.
+  - **Deceptive Day Mode**: Configure a custom day start hour (e.g., 4:00 AM) so late-night sessions stay grouped with the logical work day
 - **This Week**: Professional "Weekly Reflection" dashboard with interactive activity charts, core metrics, and a detailed historical comparison log.
 - **Category-based Organization**: Group apps into customizable categories (Work, Entertainment, Social, etc.)
 
@@ -165,6 +166,7 @@ The main window provides a navigation sidebar with these sections:
 - **Today**: Editorial summary of today's core metrics and category mix
 - **This Week**: Weekly usage charts and statistics
 - **Habit Tracker**: Build and track daily habits with streaks and statistics
+- **Settings**: Configure app preferences including custom day boundaries
 
 ### Menu Bar
 Click the eye icon in the menu bar for quick access to:
