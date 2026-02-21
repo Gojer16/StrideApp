@@ -2,6 +2,28 @@ import Foundation
 import SQLite3
 import SwiftUI
 
+// MARK: - Browser Domain Model
+
+/**
+ Represents aggregated usage statistics for a specific web domain across browsers.
+ 
+ Instead of showing "Google Chrome: 4hrs", this model enables showing:
+ - "github.com: 2hrs"
+ - "stackoverflow.com: 1hr"
+ - "youtube.com: 1hr"
+ */
+struct BrowserDomain: Identifiable {
+    let id = UUID()
+    let domain: String
+    let browserApp: String  // Which browser (e.g., "Google Chrome")
+    var activeTime: TimeInterval
+    var passiveTime: TimeInterval
+    
+    var totalTime: TimeInterval {
+        activeTime + passiveTime
+    }
+}
+
 // MARK: - Today Stats Model
 
 /**
@@ -18,6 +40,7 @@ struct TodayStats {
     }
     
     let apps: [AppStats]
+    let browserDomains: [BrowserDomain]
     let totalActiveTime: TimeInterval
     let totalPassiveTime: TimeInterval
     let totalVisits: Int
@@ -25,6 +48,7 @@ struct TodayStats {
     
     static let empty = TodayStats(
         apps: [],
+        browserDomains: [],
         totalActiveTime: 0,
         totalPassiveTime: 0,
         totalVisits: 0,
@@ -178,6 +202,16 @@ struct AppUsage: Codable, Identifiable, Hashable {
     
     func getCategory() -> Category {
         return UsageDatabase.shared.getCategory(byId: categoryId) ?? Category.defaultCategories.last!
+    }
+    
+    /// Returns true if this app is a web browser
+    var isBrowser: Bool {
+        let browserNames = [
+            "chrome", "safari", "firefox", "edge", "brave", "arc", "vivaldi",
+            "opera", "chromium", "microsoft edge", "google chrome", "mozilla firefox"
+        ]
+        let lowercasedName = name.lowercased()
+        return browserNames.contains { lowercasedName.contains($0) }
     }
 }
 
@@ -1278,6 +1312,83 @@ class UsageDatabase {
         cacheLock.unlock()
         
         return results
+    }
+    
+    /**
+     Batch query for browser domain stats - returns domain-level breakdown for browsers.
+     
+     For browser apps (Chrome, Safari, Firefox), this parses window titles to extract
+     domains and aggregates time per domain instead of per app.
+     
+     - Returns: Array of BrowserDomain objects with time per domain
+     */
+    func getTodayBrowserDomains() -> [BrowserDomain] {
+        guard db != nil else { return [] }
+        
+        let startOfDay = UserPreferences.shared.logicalStartOfToday
+        let sql = """
+            SELECT 
+                applications.name as app_name,
+                windows.title as window_title,
+                SUM(sessions.duration) as active_time,
+                SUM(sessions.passive_duration) as passive_time
+            FROM sessions
+            JOIN windows ON sessions.window_id = windows.id
+            JOIN applications ON windows.app_id = applications.id
+            WHERE sessions.start_time >= ?
+            GROUP BY applications.id, windows.title;
+        """
+        
+        return dbQueue.sync {
+            var statement: OpaquePointer?
+            var domains: [String: BrowserDomain] = [:]
+            
+            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+                sqlite3_bind_double(statement, 1, startOfDay.timeIntervalSince1970)
+                
+                while sqlite3_step(statement) == SQLITE_ROW {
+                    guard let appNameCString = sqlite3_column_text(statement, 0),
+                          let windowTitleCString = sqlite3_column_text(statement, 1) else {
+                        continue
+                    }
+                    
+                    let appName = String(cString: appNameCString)
+                    let windowTitle = String(cString: windowTitleCString)
+                    let activeTime = sqlite3_column_double(statement, 2)
+                    let passiveTime = sqlite3_column_double(statement, 3)
+                    
+                    // Check if this is a browser app
+                    let isBrowser = ["chrome", "safari", "firefox", "edge", "brave", "arc", "vivaldi", "opera"]
+                        .contains { appName.lowercased().contains($0) }
+                    
+                    guard isBrowser else { continue }
+                    
+                    // Parse domain from window title
+                    guard let domain = DomainParser.extractDomain(from: windowTitle) else {
+                        continue
+                    }
+                    
+                    // Aggregate by domain (combine multiple windows/browsers for same domain)
+                    let key = domain.lowercased()
+                    if var existing = domains[key] {
+                        existing.activeTime += activeTime
+                        existing.passiveTime += passiveTime
+                        domains[key] = existing
+                    } else {
+                        domains[key] = BrowserDomain(
+                            domain: domain,
+                            browserApp: appName,
+                            activeTime: activeTime,
+                            passiveTime: passiveTime
+                        )
+                    }
+                }
+            }
+            sqlite3_finalize(statement)
+            
+            // Return sorted by total time
+            return Array(domains.values).sorted { $0.totalTime > $1.totalTime }
+        }
     }
     
     func getTime(for date: Date) -> TimeInterval {
