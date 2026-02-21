@@ -2,6 +2,28 @@
 
 All notable changes to the Stride project will be documented in this file.
 
+## [Unreleased] - 2026-02-21
+
+### 🚀 Major Changes
+
+- **Deceptive Day Mode:** Introduced customizable day boundaries for the Today tab.
+  - **Custom Day Start Hour:** Users can now define when their day starts (e.g., 4:00 AM instead of midnight).
+  - **Extended Mode Indicator:** When viewing data before the day start hour, the Today tab shows "(extended)" with a "LATE NIGHT" badge.
+  - **Logical Day Grouping:** Late-night work sessions (e.g., 11 PM - 2 AM) now stay grouped with the logical work day they belong to.
+  - **Settings Panel:** New Settings view accessible from the sidebar for configuring preferences.
+  - **Scope:** Feature applies only to Today tab; other views (This Week, All Apps) continue using calendar days.
+
+### ✨ Features
+
+- **Habit Tracker UX Improvements:**
+  - **Hover Icons:** Grid cells now show contextual +/− icons on hover (+ for empty cells, − for filled cells)
+  - **Option+Click Decrement:** Hold Option key while clicking to quickly undo/decrement sessions
+  - **Smart Deletion:** Decrementing to zero now removes the entry from database (keeps data clean)
+  - **Shrink Animation:** Decrement actions have a satisfying "shrink" effect (opposite of increment's "pop")
+  - **First-Time Hint:** After 3 increments, users see a dismissible banner teaching the Option+Click shortcut
+  - **Enhanced Tooltips:** Hover tooltips now show "Click to add • Option+Click to remove"
+  - **User Preferences System:** New persistent settings manager for app-wide preferences
+
 ## [Unreleased] - 2026-02-12
 
 ### 🚀 Major Changes
