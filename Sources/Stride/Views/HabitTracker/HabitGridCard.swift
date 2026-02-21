@@ -10,12 +10,14 @@ struct HabitGridCard: View {
     let entries: [Date: Double]
     let streak: HabitStreak
     let statistics: HabitStatistics
+    let isCollapsed: Bool
     
     let onDayTap: (Date) -> Void
     let onShowHistory: (Date) -> Void
     let onAddToday: () -> Void
     let onViewDetails: () -> Void
     let onIncrementTracked: () -> Void
+    let onToggleCollapse: () -> Void
     
     @State private var isHovered = false
     
@@ -27,22 +29,40 @@ struct HabitGridCard: View {
     private let accentColor: Color
     
     init(habit: Habit, entries: [Date: Double], streak: HabitStreak, statistics: HabitStatistics,
+         isCollapsed: Bool,
          onDayTap: @escaping (Date) -> Void, onShowHistory: @escaping (Date) -> Void,
          onAddToday: @escaping () -> Void, onViewDetails: @escaping () -> Void,
-         onIncrementTracked: @escaping () -> Void) {
+         onIncrementTracked: @escaping () -> Void, onToggleCollapse: @escaping () -> Void) {
         self.habit = habit
         self.entries = entries
         self.streak = streak
         self.statistics = statistics
+        self.isCollapsed = isCollapsed
         self.onDayTap = onDayTap
         self.onShowHistory = onShowHistory
         self.onAddToday = onAddToday
         self.onViewDetails = onViewDetails
         self.onIncrementTracked = onIncrementTracked
+        self.onToggleCollapse = onToggleCollapse
         self.accentColor = Color(hex: habit.color)
     }
     
     var body: some View {
+        Group {
+            if isCollapsed {
+                CollapsedHabitCard(
+                    habit: habit,
+                    streak: streak,
+                    statistics: statistics,
+                    onToggleCollapse: onToggleCollapse
+                )
+            } else {
+                expandedCard
+            }
+        }
+    }
+    
+    private var expandedCard: some View {
         VStack(alignment: .leading, spacing: 20) {
             // MARK: 1. Header & Current Streak
             headerSection
@@ -121,6 +141,19 @@ struct HabitGridCard: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(Capsule().fill(Color.black.opacity(0.04)))
+            
+            // Chevron collapse button
+            Button(action: {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
+                    onToggleCollapse()
+                }
+            }) {
+                Image(systemName: "chevron.up.circle.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(secondaryText)
+                    .rotationEffect(.degrees(0))
+            }
+            .buttonStyle(.plain)
         }
     }
     
