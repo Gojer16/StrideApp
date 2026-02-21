@@ -2,6 +2,36 @@ import Foundation
 import SQLite3
 import SwiftUI
 
+// MARK: - Today Stats Model
+
+/**
+ Pre-computed statistics for the Today tab.
+ 
+ This model holds all data needed to render the Today view, computed in a background
+ task to avoid blocking the main thread with database queries.
+ */
+struct TodayStats {
+    struct AppStats {
+        let app: AppUsage
+        let activeTime: TimeInterval
+        let passiveTime: TimeInterval
+    }
+    
+    let apps: [AppStats]
+    let totalActiveTime: TimeInterval
+    let totalPassiveTime: TimeInterval
+    let totalVisits: Int
+    let categoryBreakdown: [(category: Category, time: TimeInterval)]
+    
+    static let empty = TodayStats(
+        apps: [],
+        totalActiveTime: 0,
+        totalPassiveTime: 0,
+        totalVisits: 0,
+        categoryBreakdown: []
+    )
+}
+
 // MARK: - Category Model
 
 /**
@@ -258,6 +288,20 @@ class UsageDatabase {
      */
     private let dbQueue = DispatchQueue(label: "com.stride.database", qos: .utility)
     
+    // MARK: - Cache
+    
+    /// Cached today stats with timestamp
+    private var cachedTodayStats: (stats: [String: (active: TimeInterval, passive: TimeInterval)], timestamp: Date)?
+    private let cacheValidityDuration: TimeInterval = 2.0 // Cache valid for 2 seconds
+    private let cacheLock = NSLock()
+    
+    /// Invalidates the today stats cache (call when session ends)
+    func invalidateTodayStatsCache() {
+        cacheLock.lock()
+        cachedTodayStats = nil
+        cacheLock.unlock()
+    }
+    
     /// Path to the SQLite database file in Application Support
     private let dbPath: String = {
         let urls = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
@@ -356,6 +400,27 @@ class UsageDatabase {
         execute(createAppsTable)
         execute(createWindowsTable)
         execute(createSessionsTable)
+        
+        // Create indexes for performance
+        createIndexes()
+    }
+    
+    /**
+     Creates database indexes for query performance optimization.
+     
+     These indexes significantly speed up the getTodayStats() batch query:
+     - sessions(start_time): Fast date filtering
+     - windows(app_id): Fast JOIN performance
+     */
+    private func createIndexes() {
+        let indexes = [
+            "CREATE INDEX IF NOT EXISTS idx_sessions_start_time ON sessions(start_time);",
+            "CREATE INDEX IF NOT EXISTS idx_windows_app_id ON windows(app_id);"
+        ]
+        
+        for index in indexes {
+            execute(index)
+        }
     }
     
     /**
@@ -1018,6 +1083,9 @@ class UsageDatabase {
                 sqlite3_step(statement)
             }
             sqlite3_finalize(statement)
+            
+            // Invalidate cache after session ends
+            self.invalidateTodayStatsCache()
         }
     }
     
@@ -1147,6 +1215,69 @@ class UsageDatabase {
             sqlite3_finalize(statement)
             return totalPassive
         }
+    }
+    
+    /**
+     Batch query for today's stats - returns all apps' active and passive time in one query.
+     
+     This is **significantly faster** than calling getTodayTime() per app because:
+     - Single database query instead of N queries
+     - No repeated dbQueue.sync blocking
+     - Optimized GROUP BY aggregation
+     - In-memory cache for repeated calls within 2 seconds
+     
+     - Returns: Dictionary mapping app_id → (activeTime, passiveTime)
+     */
+    func getTodayStats() -> [String: (active: TimeInterval, passive: TimeInterval)] {
+        guard db != nil else { return [:] }
+        
+        // Check cache first
+        cacheLock.lock()
+        if let cached = cachedTodayStats,
+           Date().timeIntervalSince(cached.timestamp) < cacheValidityDuration {
+            cacheLock.unlock()
+            return cached.stats
+        }
+        cacheLock.unlock()
+        
+        let startOfDay = UserPreferences.shared.logicalStartOfToday
+        let sql = """
+            SELECT 
+                windows.app_id,
+                SUM(sessions.duration) as active_time,
+                SUM(sessions.passive_duration) as passive_time
+            FROM sessions
+            JOIN windows ON sessions.window_id = windows.id
+            WHERE sessions.start_time >= ?
+            GROUP BY windows.app_id;
+        """
+        
+        let results = dbQueue.sync {
+            var statement: OpaquePointer?
+            var results: [String: (active: TimeInterval, passive: TimeInterval)] = [:]
+            
+            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+                sqlite3_bind_double(statement, 1, startOfDay.timeIntervalSince1970)
+                
+                while sqlite3_step(statement) == SQLITE_ROW {
+                    if let appIdCString = sqlite3_column_text(statement, 0) {
+                        let appId = String(cString: appIdCString)
+                        let activeTime = sqlite3_column_double(statement, 1)
+                        let passiveTime = sqlite3_column_double(statement, 2)
+                        results[appId] = (activeTime, passiveTime)
+                    }
+                }
+            }
+            sqlite3_finalize(statement)
+            return results
+        }
+        
+        // Update cache
+        cacheLock.lock()
+        cachedTodayStats = (results, Date())
+        cacheLock.unlock()
+        
+        return results
     }
     
     func getTime(for date: Date) -> TimeInterval {
