@@ -91,6 +91,10 @@ struct ContributionGrid: View {
  * - Option+Click: Decrement (-1 session, deletes if reaches 0)
  * - Click info icon: View history
  * - Hover: Shows contextual +/− and ℹ️ icons
+ * 
+ * Performance:
+ * - Debounced clicks (200ms) to prevent rapid-fire database writes
+ * - Optimistic UI updates for instant feedback
  */
 struct DayCell: View {
     let date: Date
@@ -105,6 +109,7 @@ struct DayCell: View {
     
     @State private var scale: CGFloat = 1.0
     @State private var isHovered: Bool = false
+    @State private var debounceTask: DispatchWorkItem?
     
     private var intensity: Double {
         if value == 0 { return 0 }
@@ -206,17 +211,26 @@ struct DayCell: View {
     }
     
     private func handleTap() {
+        // Cancel any pending debounced action
+        debounceTask?.cancel()
+        
         // Check if Option key is held
         let modifiers = NSEvent.modifierFlags
         
         if modifiers.contains(.option) && value > 0 {
-            // Option+Click: Decrement
+            // Option+Click: Decrement (immediate for better UX)
             shrinkEffect()
             onDecrement()
         } else {
-            // Regular Click: Increment
+            // Regular Click: Increment (debounced to prevent spam)
             popEffect()
-            onIncrement()
+            
+            // Debounce: only execute if no new click within 200ms
+            let task = DispatchWorkItem {
+                onIncrement()
+            }
+            debounceTask = task
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: task)
         }
     }
     
