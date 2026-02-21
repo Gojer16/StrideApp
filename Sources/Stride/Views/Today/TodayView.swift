@@ -86,11 +86,31 @@ struct TodayView: View {
      */
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(formattedDate())
-                .font(.system(size: 12, weight: .black))
-                .foregroundColor(accentColor)
-                .tracking(2)
-                .textCase(.uppercase)
+            HStack(spacing: 8) {
+                Text(formattedDate())
+                    .font(.system(size: 12, weight: .black))
+                    .foregroundColor(accentColor)
+                    .tracking(2)
+                    .textCase(.uppercase)
+                
+                // Extended mode badge
+                if UserPreferences.shared.isInExtendedDay {
+                    HStack(spacing: 4) {
+                        Image(systemName: "moon.fill")
+                            .font(.system(size: 8))
+                        Text("LATE NIGHT")
+                            .font(.system(size: 8, weight: .black))
+                            .tracking(1)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(Color(hex: "#7A6B8A"))
+                    )
+                }
+            }
             
             Text("Day Summary")
                 .font(.system(size: 48, weight: .bold, design: .serif))
@@ -290,7 +310,14 @@ struct TodayView: View {
     private func formattedDate() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMMM d"
-        return formatter.string(from: Date())
+        let logicalDate = UserPreferences.shared.logicalDate
+        let dateString = formatter.string(from: logicalDate)
+        
+        // Add "(extended)" indicator if in extended day mode
+        if UserPreferences.shared.isInExtendedDay {
+            return "\(dateString) (extended)"
+        }
+        return dateString
     }
     
     private func formattedTotalTime() -> String {
