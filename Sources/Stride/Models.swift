@@ -1240,6 +1240,24 @@ extension TimeInterval {
             return String(format: "%ds", seconds)
         }
     }
+    
+    /// Formats time in short format without seconds (e.g., "2h 15m" or "45m")
+    var formattedShort: String {
+        let hours = Int(self) / 3600
+        let minutes = (Int(self) % 3600) / 60
+        
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else {
+            return "\(minutes)m"
+        }
+    }
+    
+    /// Formats time as decimal hours (e.g., "2.5h")
+    var formattedHours: String {
+        let hours = Double(self) / 3600.0
+        return String(format: "%.1fh", hours)
+    }
 }
 
 /**

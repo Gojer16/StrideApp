@@ -201,4 +201,113 @@ extension Date {
         formatter.dateFormat = "d"
         return formatter.string(from: self)
     }
+    
+    // MARK: - Additional Date Helpers
+    
+    /// Returns the start of the day (midnight)
+    var startOfDay: Date {
+        Calendar.current.startOfDay(for: self)
+    }
+    
+    /// Returns date after adding specified number of days
+    func adding(days: Int) -> Date {
+        Calendar.current.date(byAdding: .day, value: days, to: self) ?? self
+    }
+    
+    /// Returns date after adding specified number of weeks
+    func adding(weeks: Int) -> Date {
+        Calendar.current.date(byAdding: .weekOfYear, value: weeks, to: self) ?? self
+    }
+    
+    /// Returns date after adding specified number of months
+    func adding(months: Int) -> Date {
+        Calendar.current.date(byAdding: .month, value: months, to: self) ?? self
+    }
+    
+    /// Returns date N days ago
+    func daysAgo(_ days: Int) -> Date {
+        adding(days: -days)
+    }
+    
+    /// Returns number of days between this date and another date
+    func daysFrom(_ date: Date) -> Int {
+        Calendar.current.dateComponents([.day], from: date, to: self).day ?? 0
+    }
+    
+    /// Returns true if same calendar day as another date
+    func isSameDay(as date: Date) -> Bool {
+        Calendar.current.isDate(self, inSameDayAs: date)
+    }
+    
+    /// Returns true if same month as another date
+    func isSameMonth(as date: Date) -> Bool {
+        Calendar.current.isDate(self, equalTo: date, toGranularity: .month)
+    }
+    
+    /// Returns full day name (e.g., "Monday")
+    var fullDayName: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: self)
+    }
+    
+    /// Returns month name (e.g., "January")
+    var monthName: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM"
+        return formatter.string(from: self)
+    }
+    
+    /// Returns short month name (e.g., "Jan")
+    var shortMonthName: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM"
+        return formatter.string(from: self)
+    }
+    
+    /// Returns year as string (e.g., "2026")
+    var yearString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy"
+        return formatter.string(from: self)
+    }
+    
+    // MARK: - Static Helpers
+    
+    /// Returns array of dates from start to end (inclusive)
+    static func datesInRange(from start: Date, to end: Date) -> [Date] {
+        var dates: [Date] = []
+        var current = start.startOfDay
+        
+        while current <= end.startOfDay {
+            dates.append(current)
+            current = current.adding(days: 1)
+        }
+        
+        return dates
+    }
+    
+    /// Returns dates for the week containing the given date
+    static func datesForWeek(containing date: Date) -> [Date] {
+        let start = date.startOfWeek
+        return (0..<7).map { start.adding(days: $0) }
+    }
+    
+    /// Returns last 7 days including today
+    static func last7Days() -> [Date] {
+        let today = Date().startOfDay
+        return (0..<7).reversed().map { today.adding(days: -$0) }
+    }
+    
+    /// Returns last 30 days including today
+    static func last30Days() -> [Date] {
+        let today = Date().startOfDay
+        return (0..<30).reversed().map { today.adding(days: -$0) }
+    }
+    
+    /// Returns last 90 days including today
+    static func last90Days() -> [Date] {
+        let today = Date().startOfDay
+        return (0..<90).reversed().map { today.adding(days: -$0) }
+    }
 }
