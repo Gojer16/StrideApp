@@ -18,7 +18,8 @@ struct MainWindowView: View {
         ("Weekly Log", "clock.badge.checkmark", "Track pomodoros"),
         ("Today", "calendar", "Today's summary"),
         ("This Week", "chart.line.uptrend.xyaxis", "Weekly patterns"),
-        ("Habit Tracker", "leaf.fill", "Track your habits")
+        ("Habit Tracker", "leaf.fill", "Track your habits"),
+        ("Settings", "gearshape.fill", "App preferences")
     ]
     
     var body: some View {
@@ -99,6 +100,8 @@ struct MainWindowView: View {
             WeeklyView()
         case 6:
             HabitTrackerView()
+        case 7:
+            SettingsView()
         default:
             CurrentSessionView()
         }
