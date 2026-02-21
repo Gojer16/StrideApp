@@ -113,7 +113,7 @@ struct HabitTrackerView: View {
         }
         .onAppear {
             loadData()
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+            withAnimation(DesignSystem.Animation.entrance.spring) {
                 isAnimating = true
             }
         }

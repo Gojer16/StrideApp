@@ -80,9 +80,8 @@ struct WeeklyView: View {
             }
         }
         .onAppear {
-            // Load fresh data from the database and trigger entrance effects
             loadWeeklyData()
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+            withAnimation(DesignSystem.Animation.entrance.spring) {
                 isLoaded = true
             }
         }

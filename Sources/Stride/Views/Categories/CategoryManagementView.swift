@@ -51,7 +51,7 @@ struct CategoryManagementView: View {
         }
         .onAppear {
             loadData()
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+            withAnimation(DesignSystem.Animation.entrance.spring) {
                 isAnimating = true
             }
         }

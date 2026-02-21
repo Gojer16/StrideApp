@@ -73,11 +73,9 @@ struct CurrentSessionView: View {
             }
         }
         .onAppear {
-            // Trigger entry animations with a smooth spring
-            withAnimation(.spring(response: 0.8, dampingFraction: 0.8)) {
+            withAnimation(DesignSystem.Animation.entrance.spring) {
                 isAnimating = true
             }
-            // Start the slow atmospheric rotation
             withAnimation(.linear(duration: 20).repeatForever(autoreverses: false)) {
                 glowRotation = 360
             }
@@ -157,6 +155,7 @@ struct CurrentSessionView: View {
         }
         .opacity(isAnimating ? 1 : 0)
         .offset(y: isAnimating ? 0 : 20)
+        .animation(DesignSystem.Animation.entrance.spring, value: isAnimating)
     }
     
     /**
@@ -179,6 +178,7 @@ struct CurrentSessionView: View {
         }
         .scaleEffect(isAnimating ? 1 : 0.95)
         .opacity(isAnimating ? 1 : 0)
+        .animation(DesignSystem.Animation.entrance.spring.delay(0.1), value: isAnimating)
     }
     
     /**

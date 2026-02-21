@@ -72,9 +72,8 @@ struct TodayView: View {
             }
         }
         .onAppear {
-            // Fetch fresh data and trigger entrance animations
             loadData()
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+            withAnimation(DesignSystem.Animation.entrance.spring) {
                 isLoaded = true
             }
         }
