@@ -15,13 +15,21 @@ All notable changes to the Stride project will be documented in this file.
 
 ### ✨ Features
 
+- **Habit Tracker History Sidebar:**
+  - **Info Icon on Hover:** Grid cells now show ℹ️ icon alongside +/− icons
+  - **Slide-in Sidebar:** Click info icon to view habit history in elegant right-side panel
+  - **30-Day Sparkline Chart:** Visual trend showing last month of activity
+  - **14 Recent Entries:** Scrollable list with dates, values, and notes
+  - **Read-Only View:** Clean, distraction-free history browsing
+  - **Removed Long-Press:** Replaced confusing long-press gesture with discoverable info icon
+
 - **Habit Tracker UX Improvements:**
   - **Hover Icons:** Grid cells now show contextual +/− icons on hover (+ for empty cells, − for filled cells)
   - **Option+Click Decrement:** Hold Option key while clicking to quickly undo/decrement sessions
   - **Smart Deletion:** Decrementing to zero now removes the entry from database (keeps data clean)
   - **Shrink Animation:** Decrement actions have a satisfying "shrink" effect (opposite of increment's "pop")
   - **First-Time Hint:** After 3 increments, users see a dismissible banner teaching the Option+Click shortcut
-  - **Enhanced Tooltips:** Hover tooltips now show "Click to add • Option+Click to remove"
+  - **Enhanced Tooltips:** Hover tooltips now show "Click to add • Option+Click to remove • ℹ️ for history"
   - **User Preferences System:** New persistent settings manager for app-wide preferences
 
 ## [Unreleased] - 2026-02-12
