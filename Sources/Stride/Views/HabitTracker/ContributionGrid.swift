@@ -181,7 +181,28 @@ struct DayCell: View {
     private var tooltipText: String {
         let dateStr = date.formatted(date: .abbreviated, time: .omitted)
         let sessions = Int(value)
-        return "\(dateStr): \(sessions) session\(sessions == 1 ? "" : "s")\nClick to add • Option+Click to remove • ℹ️ for history"
+        
+        if value == 0 {
+            return "\(dateStr): No activity\nClick to add • Option+Click to remove • ℹ️ for history"
+        }
+        
+        // Show session count and target progress
+        let progressText: String
+        if habit.type == .timer {
+            let minutes = Int(value)
+            let targetMinutes = Int(habit.targetValue)
+            let percentage = min(100, Int((value / habit.targetValue) * 100))
+            progressText = "\(minutes)/\(targetMinutes) min (\(percentage)%)"
+        } else if habit.type == .counter {
+            let count = Int(value)
+            let target = Int(habit.targetValue)
+            let percentage = min(100, Int((value / habit.targetValue) * 100))
+            progressText = "\(count)/\(target) times (\(percentage)%)"
+        } else {
+            progressText = "Completed"
+        }
+        
+        return "\(dateStr): \(sessions) session\(sessions == 1 ? "" : "s") • \(progressText)\nClick to add • Option+Click to remove • ℹ️ for history"
     }
     
     private func handleTap() {
