@@ -243,7 +243,24 @@ struct HabitTrackerView: View {
                     }
                 }
             }
+            
             Spacer()
+            
+            // Global collapse/expand toggle
+            Button(action: toggleAllHabits) {
+                HStack(spacing: 6) {
+                    Image(systemName: allHabitsCollapsed ? "chevron.down.circle" : "chevron.up.circle")
+                        .font(.system(size: 14, weight: .bold))
+                    Text(allHabitsCollapsed ? "Expand All" : "Collapse All")
+                        .font(.system(size: 13, weight: .bold))
+                }
+                .foregroundColor(secondaryText)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Color.black.opacity(0.04))
+                .cornerRadius(20)
+            }
+            .buttonStyle(.plain)
         }
         .opacity(isAnimating ? 1 : 0)
         .offset(y: isAnimating ? 0 : 20)
@@ -256,17 +273,20 @@ struct HabitTrackerView: View {
                 let entries = getLast90DaysEntries(for: habit)
                 let streak = database.getStreak(for: habit)
                 let stats = database.getStatistics(for: habit)
+                let isCollapsed = preferences.isHabitCollapsed(id: habit.id)
                 
                 HabitGridCard(
                     habit: habit,
                     entries: entries,
                     streak: streak,
                     statistics: stats,
+                    isCollapsed: isCollapsed,
                     onDayTap: { date in handleDayTap(habit: habit, date: date) },
                     onShowHistory: { date in handleShowHistory(habit: habit, date: date) },
                     onAddToday: { handleAddToday(habit: habit) },
                     onViewDetails: { detailHabit = habit },
-                    onIncrementTracked: { handleIncrementTracked() }
+                    onIncrementTracked: { handleIncrementTracked() },
+                    onToggleCollapse: { toggleHabitCollapse(habit: habit) }
                 )
                 .opacity(isAnimating ? 1 : 0)
                 .offset(y: isAnimating ? 0 : 30)
@@ -280,6 +300,7 @@ struct HabitTrackerView: View {
     private func loadData() {
         habits = database.getAllHabits()
         calculateOverallStats()
+        applySmartDefaultCollapseState()
     }
     
     private func calculateOverallStats() {
@@ -364,6 +385,53 @@ struct HabitTrackerView: View {
     
     private func handleAddToday(habit: Habit) {
         selectedDay = SelectedDay(habit: habit, date: Date(), entry: database.getEntry(for: habit.id, on: Date()))
+    }
+    
+    // MARK: - Collapse State Management
+    
+    private var allHabitsCollapsed: Bool {
+        return filteredHabits.allSatisfy { preferences.isHabitCollapsed(id: $0.id) }
+    }
+    
+    private func toggleHabitCollapse(habit: Habit) {
+        let currentState = preferences.isHabitCollapsed(id: habit.id)
+        preferences.setHabitCollapsed(id: habit.id, collapsed: !currentState)
+    }
+    
+    private func toggleAllHabits() {
+        let habitIds = filteredHabits.map { $0.id }
+        
+        if allHabitsCollapsed {
+            // Expand all with staggered animation
+            for (index, id) in habitIds.enumerated() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.05) {
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
+                        preferences.setHabitCollapsed(id: id, collapsed: false)
+                    }
+                }
+            }
+        } else {
+            // Collapse all with staggered animation
+            for (index, id) in habitIds.enumerated() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.05) {
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
+                        preferences.setHabitCollapsed(id: id, collapsed: true)
+                    }
+                }
+            }
+        }
+    }
+    
+    private func applySmartDefaultCollapseState() {
+        // Only apply smart defaults if no collapse state exists yet
+        guard !preferences.hasAnyCollapseState else { return }
+        
+        let today = Date()
+        for habit in habits {
+            let hasActivityToday = database.getEntry(for: habit.id, on: today) != nil
+            // Expand habits with activity today, collapse others
+            preferences.setHabitCollapsed(id: habit.id, collapsed: !hasActivityToday)
+        }
     }
 
     private func quickToggleToday(habit: Habit) {
