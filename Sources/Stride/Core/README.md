@@ -25,6 +25,7 @@
 - System-level monitoring classes (`AppMonitor`, `WindowTitleProvider`)
 - Session orchestration logic (`SessionManager`)
 - SQLite database managers for habits and weekly logs (`HabitDatabase`, `WeeklyLogDatabase`)
+- Base database infrastructure (`BaseDatabase`, `DatabaseError`, `DatabaseLogger`, `DatabaseMigration`)
 - Thread-safety dispatch queues for database operations
 
 **Must NEVER be added here:**
@@ -79,11 +80,25 @@
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
+│                     BaseDatabase Infrastructure                  │
+│  - DatabaseError: Error types with Result<T, Error> propagation │
+│  - DatabaseLogger: Unified OSLog logging (general/migration/etc)│
+│  - DatabaseMigration: Protocol for versioned schema migrations  │
+│  - BaseDatabase: Shared SQLite patterns, connection mgmt,       │
+│    prepared statement helpers, transaction support              │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ inherits from
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
 │                     Separate Persistence Layers                  │
 ├─────────────────────────────┬───────────────────────────────────┤
 │      HabitDatabase          │      WeeklyLogDatabase            │
 │  File: habits.db            │  File: weeklylog.db               │
-│  Queue: com.stride.habits   │  Queue: com.stride.weeklylog      │
+│  Version: 1                 │  Version: 2                       │
+│  Migrations: HabitMigrationV1│  Migrations: WeeklyLogMigrationV1│
+│  Result APIs: Yes           │              WeeklyLogMigrationV2 │
+│                             │  Result APIs: Yes                 │
 └─────────────────────────────┴───────────────────────────────────┘
 ```
 
@@ -92,6 +107,29 @@
 - `SessionManager.startNewSession(appName:windowTitle:)` - begins a tracking session
 - `HabitDatabase.shared` - singleton access for habit persistence
 - `WeeklyLogDatabase.shared` - singleton access for weekly log persistence
+- `BaseDatabase` - base class for new database implementations
+- `DatabaseLogger.general/migration/query/error` - unified logging
+
+**Database Migration System:**
+- Versioned migrations via `DatabaseMigration` protocol
+- `PRAGMA user_version` tracks current schema version
+- Migrations run automatically on database init via `runMigrations(_:)`
+- Each migration has `version`, `description`, and `execute(on:)` method
+
+**Error Propagation Pattern:**
+```swift
+// New Result-based APIs return Result<T, DatabaseError>
+let result = db.incrementEntry(habitId: id, date: date)
+switch result {
+case .success:
+    // Handle success
+case .failure(let error):
+    DatabaseLogger.error.error("Failed: \(error.localizedDescription)")
+}
+
+// Backward-compatible typealias provided
+typealias HabitDatabaseResult<T> = Result<T, DatabaseError>
+```
 
 **Coordination layer (not shown in diagram):**
 - `AppState` (in `Sources/Stride/StrideApp.swift`) implements `AppMonitorDelegate`
@@ -220,6 +258,47 @@
 **Critical assumptions:**
 - Explicit column list (`entryColumns`) ensures index stability after migrations
 - Date ranges use Unix timestamp (seconds since 1970)
+
+### `BaseDatabase.swift`
+**What it does:** Provides shared SQLite infrastructure for all database classes.
+
+**Why it exists:** Eliminates code duplication across `HabitDatabase` and `WeeklyLogDatabase`.
+
+**Who calls it:** Subclasses (`HabitDatabase`, `WeeklyLogDatabase`) inherit from it.
+
+**Side effects:** None (abstract base class).
+
+**Public API:**
+```swift
+class BaseDatabase {
+    var db: OpaquePointer?
+    let dbQueue: DispatchQueue
+    let dbPath: String
+    
+    var currentVersion: Int { get }
+    
+    func openDatabase() -> Result<Void, DatabaseError>
+    func closeDatabase()
+    func execute(_ sql: String) -> Result<Void, DatabaseError>
+    func runMigrations(_ migrations: [DatabaseMigration]) -> Result<Void, DatabaseError>
+    
+    // Prepared statement helpers
+    func prepareStatement(_ sql: String) -> Result<OpaquePointer, DatabaseError>
+    func bindText/Double/Int/UUID(...)
+    func columnText/Double/Date/Int/Bool/UUID(...)
+    
+    // Transaction support
+    func beginTransaction() -> Result<Void, DatabaseError>
+    func commit() -> Result<Void, DatabaseError>
+    func rollback() -> Result<Void, DatabaseError>
+    func withTransaction<T>(_ block: () throws -> T) -> Result<T, DatabaseError>
+}
+```
+
+**Critical assumptions:**
+- Subclasses call `super.init(filename:queueLabel:)` in their initializer
+- Subclasses define migrations as `[DatabaseMigration]` array
+- All database operations go through `dbQueue.sync/async`
 
 ## 5. Public API
 
@@ -533,15 +612,17 @@ print(db.getAllHabits())
 3. Maintain separation: AppMonitor for events, SessionManager for lifecycle, databases for persistence
 
 **Files that must be read before editing:**
-- All files in this folder
+- All files in this folder (including `BaseDatabase.swift`)
 - `Sources/Stride/Models.swift` (for `UsageDatabase`, `AppUsage`, `WindowUsage`, `UsageSession`)
 - `Sources/Stride/Models/HabitModels.swift` (for `Habit`, `HabitEntry`)
 - `Sources/Stride/Models/WeeklyLogModels.swift` (for `WeeklyLogEntry`)
 
 **Safe refactoring rules:**
-- Adding columns to database schemas requires: ALTER TABLE migration + `extractEntry()` update
+- Adding columns requires: new `DatabaseMigration` struct + update `extractEntry()` column indices
 - Changing timer intervals in `AppMonitor.Constants` is safe
-- Adding new database methods must use `dbQueue.sync` (reads) or `dbQueue.async` (writes)
+- Adding new database methods should use `BaseDatabase` helpers (`bindText`, `columnDate`, etc.)
+- New write operations should return `Result<T, DatabaseError>` for error propagation
+- Use `DatabaseLogger.general/migration/query/error` for logging instead of `print()`
 - Adding new `AppMonitorDelegate` methods is **NOT safe** - all methods are required (no default implementations exist); must update `AppState` (the sole conformer)
 
 **Forbidden modifications:**
@@ -550,38 +631,68 @@ print(db.getAllHabits())
 - DO NOT use `SELECT *` in `WeeklyLogDatabase` (breaks column index assumptions)
 - DO NOT change UUID string format in database bindings
 - DO NOT add `AppMonitorDelegate` methods without updating `AppState` (the sole conformer)
+- DO NOT skip version numbers in migrations (must be sequential)
+- DO NOT modify `user_version` directly; use `runMigrations(_:)`
 
 ## 11. Extension Points
 
 **Safe addition locations:**
-- New query methods in `HabitDatabase` / `WeeklyLogDatabase` (follow sync/async pattern)
+- New query methods in `HabitDatabase` / `WeeklyLogDatabase` (use `BaseDatabase` helpers)
 - Additional statistics calculations in `HabitDatabase`
-- New tables in databases (add `createXxxTable()` method + call from `createTables()`)
+- New database tables: create `DatabaseMigration` struct, add to migrations array
+- New database classes: inherit from `BaseDatabase`, define migrations
 
 **How to extend without breaking contracts:**
-1. For new database tables: add CREATE TABLE in `createTables()`, add CRUD methods following existing patterns
+1. For new database tables: create `XxxMigrationV{n}` struct implementing `DatabaseMigration`, add to migrations array
 2. For new statistics: add computed property or method that queries existing tables
 3. For new monitoring events: add delegate method to `AppMonitorDelegate` AND update `AppState` (no default implementations exist)
+4. For new database classes: inherit from `BaseDatabase`, call `super.init(filename:queueLabel:)`, implement migrations
+
+**Example: Adding a new migration**
+```swift
+struct HabitMigrationV2: DatabaseMigration {
+    let version = 2
+    let description = "Add tags column to habits"
+    
+    func execute(on db: OpaquePointer) throws {
+        let sql = "ALTER TABLE habits ADD COLUMN tags TEXT NOT NULL DEFAULT '';"
+        var errorMessage: UnsafeMutablePointer<CChar>?
+        if sqlite3_exec(db, sql, nil, nil, &errorMessage) != SQLITE_OK {
+            let msg = errorMessage.map { String(cString: $0) } ?? "Unknown"
+            errorMessage.map { sqlite3_free($0) }
+            throw DatabaseError.executeFailed(sql: sql, message: msg)
+        }
+    }
+}
+
+// In HabitDatabase:
+private let migrations: [DatabaseMigration] = [
+    HabitMigrationV1(),
+    HabitMigrationV2()  // Add new migration here
+]
+```
 
 ## 12. Technical Debt & TODO
 
+**Completed (2024):**
+- ✅ `BaseDatabase` class - extracted common SQLite patterns
+- ✅ Unified logging via `OSLog` (`DatabaseLogger`)
+- ✅ Migration versioning with `PRAGMA user_version`
+- ✅ `Result<T, DatabaseError>` error propagation
+
 **Weak areas:**
-- No proper error propagation; database failures are silent
 - Streak algorithm O(n) complexity; could be optimized with caching
 - Sample data insertion blocks init; should be async
 
 **Refactor targets:**
-- Extract common database patterns into a `BaseDatabase` class
-- Replace print statements with proper logging framework
-- Add `Result<T, Error>` return types for database operations
+- Consider extracting `UsageDatabase` to use `BaseDatabase` pattern
+- Add retry logic for transient database failures
 
 **Simplification ideas:**
-- Merge `HabitDatabase` and `WeeklyLogDatabase` into single database file
 - Use SQLite WAL mode for better concurrent read performance
-- Replace manual SQL with a lightweight query builder
+- Consider replacing manual SQL with a lightweight query builder
 
 **Missing:**
-- Database migration versioning system
 - Backup/export functionality
 - Unit tests for streak calculations
 - Accessibility permission status checking API
