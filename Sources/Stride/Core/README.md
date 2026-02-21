@@ -59,16 +59,17 @@
 │  - Event-driven app change detection (instant)                   │
 │  - Timer-based window polling (2s interval)                      │
 │  - Delegate pattern: AppMonitorDelegate                          │
+│  - Calls WindowTitleProvider.getWindowTitle(for:) internally     │
 └─────────────────────────────────────────────────────────────────┘
          │                                       │
-         │ app change                            │ window change
+         │ app change                            │ window change (via delegate)
          ▼                                       ▼
 ┌────────────────────────────────┐    ┌────────────────────────────┐
 │      SessionManager            │    │    WindowTitleProvider     │
-│ - startNewSession()            │◄───│ - getWindowTitle(for:)     │
+│ - startNewSession()            │    │ - getWindowTitle(for:)     │
 │ - endCurrentSession()          │    │ - AXUIElement queries      │
-│ - Tracks current session state │    └────────────────────────────┘
-└────────────────────────────────┘
+│ - Tracks current session state │    │ - Pure query (no callbacks)│
+└────────────────────────────────┘    └────────────────────────────┘
          │
          │ persists to
          ▼
@@ -92,10 +93,31 @@
 - `HabitDatabase.shared` - singleton access for habit persistence
 - `WeeklyLogDatabase.shared` - singleton access for weekly log persistence
 
+**Coordination layer (not shown in diagram):**
+- `AppState` (in `Sources/Stride/StrideApp.swift`) implements `AppMonitorDelegate`
+- `AppState` receives delegate callbacks and manually orchestrates calls to `SessionManager.startNewSession()` and `endCurrentSession()`
+- `SessionManager` does NOT implement `AppMonitorDelegate` directly; it is controlled by `AppState`
+
 **State management strategy:**
-- `AppMonitor`: Holds `currentApp` (NSRunningApplication?) and `lastWindowTitle` (String)
-- `SessionManager`: Holds `currentSession`, `currentApp`, `currentWindow` (all mutable)
+- `AppMonitor`: Holds `currentApp` (NSRunningApplication?) and `lastWindowTitle` (String); both are publicly read-only (`private(set)`)
+- `SessionManager`: Holds `currentSession`, `currentApp`, `currentWindow`; all are publicly read-only (`private(set)`), internally mutable
 - Database classes: Stateless singletons; state is persisted to SQLite
+
+**Why three separate database files:**
+- `usage.db`: App/window/session usage tracking (managed by `UsageDatabase` in Models.swift)
+- `habits.db`: Habit definitions and entries (managed by `HabitDatabase`)
+- `weeklylog.db`: Manual weekly log entries (managed by `WeeklyLogDatabase`)
+- Rationale: Each feature has independent data lifecycle; habits/weekly logs can be cleared without affecting usage history
+
+**Graceful shutdown behavior:**
+- On app termination, active session time is LOST if `endCurrentSession()` is not called
+- Databases close via `deinit` with `sqlite3_close(db)`; in-flight async writes may be lost
+- App should call `AppMonitor.stopMonitoring()` and `SessionManager.endCurrentSession()` in `applicationWillTerminate`
+
+**1-second elapsed timer purpose:**
+- Fires `appMonitorDidUpdateElapsedTime()` to notify delegate every second
+- Consumed by `AppState` to update UI showing "time spent in current app" display
+- Not persisted; only for real-time UI feedback
 
 **Data flow:**
 1. User switches app → `NSWorkspace` fires notification → `AppMonitor.appDidActivate()`
@@ -155,8 +177,8 @@
 - Updates visit counts in database
 
 **Critical assumptions:**
-- `endCurrentSession()` called BEFORE `startNewSession()` to avoid data loss
-- Single-threaded access (typically main thread)
+- `endCurrentSession()` MUST be called BEFORE `startNewSession()` to avoid data loss. If `startNewSession()` is called without first calling `endCurrentSession()`, the in-progress session's elapsed time will NOT be persisted to the database.
+- Single-threaded access required (typically main thread). Concurrent calls to `startNewSession()` from multiple threads may cause session state corruption and orphaned database records.
 
 ### `HabitDatabase.swift`
 **What it does:** Thread-safe SQLite persistence for habit tracking.
@@ -175,6 +197,11 @@
 **Critical assumptions:**
 - All public methods are thread-safe via `dbQueue`
 - UUID strings are valid (forced unwrap in `extractEntry`)
+
+**Lifecycle contract:**
+- Singleton initialized on first access to `.shared`
+- `sqlite3_close(db)` called in `deinit` (typically never during app lifetime)
+- In-flight `dbQueue.async` writes may be lost on sudden app termination
 
 ### `WeeklyLogDatabase.swift`
 **What it does:** Thread-safe SQLite persistence for weekly log entries.
@@ -219,7 +246,7 @@ func getCurrentWindowTitle() -> String
 **Edge cases:**
 - App with no focused window returns empty title
 - Sandbox-restricted apps may return empty title
-- Calling `startMonitoring()` twice creates duplicate timers (bug risk)
+- Calling `startMonitoring()` twice without calling `stopMonitoring()` first registers duplicate notification observers and creates overlapping timers. Both will fire, causing duplicate delegate callbacks and increased CPU usage.
 
 **Idempotency:** `stopMonitoring()` is safe to call multiple times.
 
@@ -236,6 +263,11 @@ func getWindowTitle(for app: NSRunningApplication) -> String
 ```
 **Returns:** Window title or empty string if unavailable.
 
+**Contract clarifications:**
+- Returns `""` (empty string) on any failure; `String?` was rejected to simplify call sites
+- If `app` process has terminated, returns `""` (does not crash)
+- Thread-unsafe: must be called from main thread (Accessibility API requirement)
+
 ### `SessionManager`
 ```swift
 var currentSession: UsageSession? { get }
@@ -249,6 +281,8 @@ var currentWindowTitle: String? { get }
 func startNewSession(appName: String, windowTitle: String)
 func endCurrentSession()
 ```
+
+**Thread safety:** Properties are `private(set)` (publicly read-only). No synchronization; concurrent reads from background threads may see stale data. Access from main thread only.
 
 **Idempotency:** `endCurrentSession()` is safe to call with no active session (early return).
 
@@ -505,29 +539,29 @@ print(db.getAllHabits())
 - `Sources/Stride/Models/WeeklyLogModels.swift` (for `WeeklyLogEntry`)
 
 **Safe refactoring rules:**
-- Adding new methods to `AppMonitorDelegate` is safe (protocol extension provides defaults)
 - Adding columns to database schemas requires: ALTER TABLE migration + `extractEntry()` update
 - Changing timer intervals in `AppMonitor.Constants` is safe
 - Adding new database methods must use `dbQueue.sync` (reads) or `dbQueue.async` (writes)
+- Adding new `AppMonitorDelegate` methods is **NOT safe** - all methods are required (no default implementations exist); must update `AppState` (the sole conformer)
 
 **Forbidden modifications:**
 - DO NOT remove `weak` from `delegate` property (retain cycle risk)
 - DO NOT call database methods outside `dbQueue` (thread safety violation)
 - DO NOT use `SELECT *` in `WeeklyLogDatabase` (breaks column index assumptions)
 - DO NOT change UUID string format in database bindings
+- DO NOT add `AppMonitorDelegate` methods without updating `AppState` (the sole conformer)
 
 ## 11. Extension Points
 
 **Safe addition locations:**
-- New `AppMonitorDelegate` methods for additional event types
 - New query methods in `HabitDatabase` / `WeeklyLogDatabase` (follow sync/async pattern)
 - Additional statistics calculations in `HabitDatabase`
 - New tables in databases (add `createXxxTable()` method + call from `createTables()`)
 
 **How to extend without breaking contracts:**
 1. For new database tables: add CREATE TABLE in `createTables()`, add CRUD methods following existing patterns
-2. For new monitoring events: add delegate method with default implementation
-3. For new statistics: add computed property or method that queries existing tables
+2. For new statistics: add computed property or method that queries existing tables
+3. For new monitoring events: add delegate method to `AppMonitorDelegate` AND update `AppState` (no default implementations exist)
 
 ## 12. Technical Debt & TODO
 
