@@ -18,11 +18,31 @@ final class UserPreferences: ObservableObject {
     /// Total number of habit increments performed (used to trigger hint)
     @AppStorage("totalHabitIncrements") var totalHabitIncrements: Int = 0
     
+    /// Habit collapse states stored as JSON dictionary [UUID: Bool]
+    @AppStorage("habitCollapseStates") private var habitCollapseStatesJSON: String = "{}"
+    
     // MARK: - Day Boundary Preferences
     
     /// Hour (0-23) when the user's day starts. Default is 0 (midnight).
     /// Sessions before this hour count as the previous calendar day.
     @AppStorage("dayStartHour") var dayStartHour: Int = 0
+    
+    // MARK: - Idle Detection Preferences
+    
+    /// Idle threshold in seconds. Default is 65 seconds.
+    /// Sessions pause when no keyboard/mouse input detected for this duration.
+    @AppStorage("idleThresholdSeconds") private var _idleThresholdSeconds: Int = 65
+    
+    /// Idle threshold as TimeInterval with validation (15-300 seconds)
+    var idleThreshold: TimeInterval {
+        get {
+            let validated = max(15, min(300, _idleThresholdSeconds))
+            return TimeInterval(validated)
+        }
+        set {
+            _idleThresholdSeconds = Int(max(15, min(300, newValue)))
+        }
+    }
     
     private init() {}
     
@@ -41,6 +61,59 @@ final class UserPreferences: ObservableObject {
     /// Mark modifier hint as seen
     func dismissModifierHint() {
         hasSeenHabitModifierHint = true
+    }
+    
+    // MARK: - Habit Collapse State Management
+    
+    private var habitCollapseStates: [String: Bool] {
+        get {
+            guard let data = habitCollapseStatesJSON.data(using: .utf8),
+                  let dict = try? JSONDecoder().decode([String: Bool].self, from: data) else {
+                return [:]
+            }
+            return dict
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue),
+               let json = String(data: data, encoding: .utf8) {
+                habitCollapseStatesJSON = json
+            }
+        }
+    }
+    
+    /// Check if a habit is collapsed
+    func isHabitCollapsed(id: UUID) -> Bool {
+        return habitCollapseStates[id.uuidString] ?? false
+    }
+    
+    /// Set collapse state for a habit
+    func setHabitCollapsed(id: UUID, collapsed: Bool) {
+        var states = habitCollapseStates
+        states[id.uuidString] = collapsed
+        habitCollapseStates = states
+    }
+    
+    /// Collapse all habits
+    func collapseAllHabits(ids: [UUID]) {
+        var states = habitCollapseStates
+        for id in ids {
+            states[id.uuidString] = true
+        }
+        habitCollapseStates = states
+    }
+    
+    /// Expand all habits
+    func expandAllHabits(ids: [UUID]) {
+        var states = habitCollapseStates
+        for id in ids {
+            states[id.uuidString] = false
+        }
+        habitCollapseStates = states
+    }
+    
+    /// Check if any collapse state exists (for smart default logic)
+    var hasAnyCollapseState: Bool {
+        return !habitCollapseStates.isEmpty
     }
     
     // MARK: - Logical Day Calculation
