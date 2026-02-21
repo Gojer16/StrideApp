@@ -111,6 +111,8 @@ struct AllAppsView: View {
                 }
             }
         }
+        .opacity(isAnimating ? 1 : 0)
+        .offset(y: isAnimating ? 0 : 20)
     }
     
     // MARK: - Subviews

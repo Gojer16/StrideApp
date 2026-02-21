@@ -49,6 +49,8 @@ struct CategoryManagementView: View {
                 }
             }
         }
+        .opacity(isAnimating ? 1 : 0)
+        .offset(y: isAnimating ? 0 : 20)
         .onAppear {
             loadData()
             withAnimation(DesignSystem.Animation.entrance.spring) {

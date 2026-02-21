@@ -40,6 +40,8 @@ struct WeeklyLogView: View {
                 viewToggle.padding(.horizontal, 24).padding(.bottom, 16)
                 mainContent.padding(.horizontal, 24).padding(.bottom, 24)
             }
+            .opacity(isAnimating ? 1 : 0)
+            .offset(y: isAnimating ? 0 : 20)
             
             // MARK: Premium Confirmation Overlay
             if let entry = entryToDelete {
