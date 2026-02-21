@@ -277,4 +277,20 @@ extension AppState: AppMonitorDelegate {
             self.updateElapsedTime()
         }
     }
+    
+    /**
+     * Responds to idle state changes detected by the monitor.
+     * 
+     * When user becomes idle (no keyboard/mouse input for threshold duration),
+     * the current session is paused. When user returns, session resumes.
+     */
+    func appMonitor(_ monitor: AppMonitor, didDetectIdleStateChange isIdle: Bool) {
+        DispatchQueue.main.async {
+            if isIdle {
+                self.sessionManager.pauseSession()
+            } else {
+                self.sessionManager.resumeSession()
+            }
+        }
+    }
 }
