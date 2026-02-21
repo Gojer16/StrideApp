@@ -292,7 +292,8 @@ struct TodayView: View {
                         app: appStats.app,
                         todayTime: appStats.activeTime,
                         percentage: percentage,
-                        rank: index + 1
+                        rank: index + 1,
+                        hourlyUsage: appStats.hourlyUsage
                     )
                 }
             }
@@ -360,7 +361,7 @@ struct TodayView: View {
             
             // Get all apps and filter/sort using cached stats
             let allApps = database.getAllApplications()
-            let appsWithStats = allApps.compactMap { app -> TodayStats.AppStats? in
+            var appsWithStats = allApps.compactMap { app -> TodayStats.AppStats? in
                 guard let stats = todayStatsMap[app.id.uuidString] else { return nil }
                 guard stats.active > 0 || stats.passive > 0 else { return nil }
                 
@@ -369,12 +370,27 @@ struct TodayView: View {
                     return nil
                 }
                 
+                // Initially create without hourly data (will add for top 3)
                 return TodayStats.AppStats(
                     app: app,
                     activeTime: stats.active,
-                    passiveTime: stats.passive
+                    passiveTime: stats.passive,
+                    hourlyUsage: []
                 )
             }.sorted { $0.activeTime > $1.activeTime }
+            
+            // Load hourly data for top 3 apps (for sparklines)
+            if appsWithStats.count > 0 {
+                for i in 0..<min(3, appsWithStats.count) {
+                    let hourlyData = database.getHourlyUsage(for: appsWithStats[i].app.id.uuidString)
+                    appsWithStats[i] = TodayStats.AppStats(
+                        app: appsWithStats[i].app,
+                        activeTime: appsWithStats[i].activeTime,
+                        passiveTime: appsWithStats[i].passiveTime,
+                        hourlyUsage: hourlyData
+                    )
+                }
+            }
             
             // Calculate totals (including browser domains)
             let appActiveTime = appsWithStats.reduce(0) { $0 + $1.activeTime }
