@@ -1069,8 +1069,8 @@ class UsageDatabase {
     func getTodayTime(for appId: String) -> TimeInterval {
         guard db != nil else { return 0 }
         
-        let calendar = Calendar.current
-        let startOfDay = calendar.startOfDay(for: Date())
+        // Use logical day boundary from UserPreferences
+        let startOfDay = UserPreferences.shared.logicalStartOfToday
         let sql = """
             SELECT SUM(duration) FROM sessions
             JOIN windows ON sessions.window_id = windows.id
