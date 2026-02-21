@@ -3,16 +3,18 @@ import SwiftUI
 /**
  * ContributionGrid - GitHub-style contribution grid for habit tracking.
  * 
- * Now with "Tactile Toggle" support:
- * - Left Click: Increment (+1 session)
- * - Right Click: Decrement (-1 session)
- * - Long Press: Open details
+ * Interaction Model:
+ * - Click: Increment (+1 session)
+ * - Option+Click: Decrement (-1 session)
+ * - Click info icon: View history
+ * - Hover: Shows contextual +/− and ℹ️ icons
  */
 struct ContributionGrid: View {
     let habit: Habit
     let entries: [Date: Double]
-    let onDayTap: (Date) -> Void // Now interpreted as increment
-    let onDayLongPress: (Date) -> Void
+    let onDayTap: (Date) -> Void // Legacy callback (not used with new model)
+    let onShowHistory: (Date) -> Void
+    let onIncrementTracked: () -> Void // Callback to track increments for hint system
     
     private let daysToShow = 91 // 13 weeks
     private let cellSize: CGFloat = 12
@@ -54,9 +56,12 @@ struct ContributionGrid: View {
                                     value: entries[Calendar.current.startOfDay(for: date)] ?? 0,
                                     isToday: date.isToday,
                                     baseColor: Color(hex: habit.color),
-                                    onIncrement: { HabitDatabase.shared.incrementEntry(habitId: habit.id, date: date) },
-                                    onDecrement: { HabitDatabase.shared.decrementEntry(habitId: habit.id, date: date) },
-                                    onLongPress: { onDayLongPress(date) }
+                                    onIncrement: { 
+                                        _ = HabitDatabase.shared.incrementEntry(habitId: habit.id, date: date)
+                                        onIncrementTracked()
+                                    },
+                                    onDecrement: { _ = HabitDatabase.shared.decrementEntry(habitId: habit.id, date: date) },
+                                    onShowHistory: { onShowHistory(date) }
                                 )
                             }
                         }
@@ -80,6 +85,12 @@ struct ContributionGrid: View {
 
 /**
  * DayCell - A tactile square that "pops" when clicked.
+ * 
+ * Interaction Model:
+ * - Click: Increment (+1 session)
+ * - Option+Click: Decrement (-1 session, deletes if reaches 0)
+ * - Click info icon: View history
+ * - Hover: Shows contextual +/− and ℹ️ icons
  */
 struct DayCell: View {
     let date: Date
@@ -90,9 +101,10 @@ struct DayCell: View {
     
     let onIncrement: () -> Void
     let onDecrement: () -> Void
-    let onLongPress: () -> Void
+    let onShowHistory: () -> Void
     
     @State private var scale: CGFloat = 1.0
+    @State private var isHovered: Bool = false
     
     private var intensity: Double {
         if value == 0 { return 0 }
@@ -104,29 +116,56 @@ struct DayCell: View {
     }
     
     var body: some View {
-        RoundedRectangle(cornerRadius: 3, style: .continuous)
-            .fill(cellColor)
-            .frame(width: 12, height: 12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .stroke(Color.black.opacity(isToday ? 0.3 : 0), lineWidth: 1.5)
-            )
-            .scaleEffect(scale)
-            .onTapGesture {
-                popEffect()
-                onIncrement()
+        ZStack {
+            // Base cell
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(cellColor)
+                .frame(width: 12, height: 12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .stroke(Color.black.opacity(isToday ? 0.3 : 0), lineWidth: 1.5)
+                )
+            
+            // Hover icons overlay
+            if isHovered {
+                HStack(spacing: 2) {
+                    // Increment/Decrement icon
+                    iconButton(
+                        systemName: value > 0 ? "minus.circle.fill" : "plus.circle.fill",
+                        action: { handleTap() }
+                    )
+                    
+                    // Info/History icon (always visible on hover)
+                    iconButton(
+                        systemName: "info.circle.fill",
+                        action: onShowHistory
+                    )
+                }
+                .transition(.opacity)
             }
-            .simultaneousGesture(
-                LongPressGesture(minimumDuration: 0.5)
-                    .onEnded { _ in onLongPress() }
-            )
-            .contextMenu {
-                Button("Increment (+1)") { onIncrement() }
-                Button("Decrement (-1)") { onDecrement() }
-                Divider()
-                Button("View Details") { onLongPress() }
+        }
+        .scaleEffect(scale)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hovering
             }
-            .help("\(date.formatted(date: .abbreviated, time: .omitted)): \(Int(value)) sessions")
+        }
+        .help(tooltipText)
+    }
+    
+    private func iconButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(Color.black.opacity(0.7))
+                    .frame(width: 14, height: 14)
+                
+                Image(systemName: systemName)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white)
+            }
+        }
+        .buttonStyle(.plain)
     }
     
     private var cellColor: Color {
@@ -139,9 +178,41 @@ struct DayCell: View {
         return baseColor.opacity(0.25 + (intensity * 0.75))
     }
     
+    private var tooltipText: String {
+        let dateStr = date.formatted(date: .abbreviated, time: .omitted)
+        let sessions = Int(value)
+        return "\(dateStr): \(sessions) session\(sessions == 1 ? "" : "s")\nClick to add • Option+Click to remove • ℹ️ for history"
+    }
+    
+    private func handleTap() {
+        // Check if Option key is held
+        let modifiers = NSEvent.modifierFlags
+        
+        if modifiers.contains(.option) && value > 0 {
+            // Option+Click: Decrement
+            shrinkEffect()
+            onDecrement()
+        } else {
+            // Regular Click: Increment
+            popEffect()
+            onIncrement()
+        }
+    }
+    
     private func popEffect() {
         withAnimation(.spring(response: 0.2, dampingFraction: 0.4)) {
             scale = 1.4
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                scale = 1.0
+            }
+        }
+    }
+    
+    private func shrinkEffect() {
+        withAnimation(.spring(response: 0.2, dampingFraction: 0.4)) {
+            scale = 0.6
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
