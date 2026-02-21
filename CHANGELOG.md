@@ -6,6 +6,14 @@ All notable changes to the Stride project will be documented in this file.
 
 ### 🚀 Major Changes
 
+- **Browser Domain Parsing:** Transformed generic browser time into granular domain-level insights.
+  - **Domain Extraction:** Intelligent parser extracts domains from browser window titles (Chrome, Safari, Firefox, Edge, Brave, Arc).
+  - **Web Activity Section:** New section in Today tab showing top domains with time breakdown (e.g., "github.com: 2hrs | stackoverflow.com: 1hr").
+  - **Domain Aggregation:** Combines time across multiple windows and browsers for same domain.
+  - **Smart Parsing:** Handles URLs, common site names, and domain patterns with 20+ site mappings.
+  - **Browser Exclusion:** Browsers removed from app list to avoid duplication (shown as domains instead).
+  - **Actionable Insights:** Transforms "Google Chrome: 4hrs" into specific website breakdown.
+
 - **Today Tab Performance Optimization:** Eliminated main thread blocking for instant load times.
   - **Batch Query:** Replaced 200+ individual database queries with single GROUP BY query.
   - **Background Loading:** All database work moved to background threads, UI never blocks.
@@ -31,6 +39,13 @@ All notable changes to the Stride project will be documented in this file.
   - **Scope:** Feature applies only to Today tab; other views (This Week, All Apps) continue using calendar days.
 
 ### ✨ Features
+
+- **Habit Tracker Tooltip Improvements:**
+  - **Streak Badge Tooltip:** Explains "active" status (completed today or yesterday, resets after 2 days)
+  - **Grid Cell Tooltips:** Shows session count AND target progress (e.g., "3 sessions • 15/30 min (50%)")
+  - **Status Clarity:** Displays "Completed today" vs "Completed yesterday" for active streaks
+  - **Inactive Streak Info:** Shows when streak is inactive and how to reactivate
+  - **Better UX:** Clarifies streak logic without changing existing behavior
 
 - **Collapsible Habit Cards:**
   - **Chevron Button:** Each habit card has a collapse/expand button in the header
