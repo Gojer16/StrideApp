@@ -63,6 +63,7 @@ struct CollapsedHabitCard: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(Capsule().fill(Color.black.opacity(0.04)))
+            .help(streakTooltip)
             
             // Success rate
             Text(statistics.formattedCompletionRate)
@@ -93,6 +94,17 @@ struct CollapsedHabitCard: View {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 isHovered = h
             }
+        }
+    }
+    
+    private var streakTooltip: String {
+        if streak.currentStreak == 0 {
+            return "No active streak. Complete this habit to start a new streak!"
+        } else if streak.isActive {
+            let status = streak.lastCompletedDate?.isToday == true ? "Completed today" : "Completed yesterday"
+            return "\(status) • \(streak.currentStreak) day streak\nActive: completed today or yesterday. Resets if you miss 2 days in a row."
+        } else {
+            return "\(streak.currentStreak) day streak (inactive)\nComplete today to reactivate your streak!"
         }
     }
 }
