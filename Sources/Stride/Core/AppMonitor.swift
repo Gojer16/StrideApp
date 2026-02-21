@@ -16,6 +16,9 @@ protocol AppMonitorDelegate: AnyObject {
     
     /// Called every second for elapsed time updates
     func appMonitorDidUpdateElapsedTime(_ monitor: AppMonitor)
+    
+    /// Called when idle state changes (user becomes idle or returns from idle)
+    func appMonitor(_ monitor: AppMonitor, didDetectIdleStateChange isIdle: Bool)
 }
 
 /**
@@ -48,11 +51,17 @@ class AppMonitor {
     /// Provider for getting window titles
     private let windowTitleProvider: WindowTitleProvider
     
+    /// Detector for system idle time
+    private let idleDetector: IdleDetector
+    
     /// Current app being monitored
     private(set) var currentApp: NSRunningApplication?
     
     /// Last known window title (for change detection)
     private var lastWindowTitle: String = ""
+    
+    /// Last known idle state (for change detection)
+    private var wasIdle: Bool = false
     
     // MARK: - Timers
     
@@ -71,8 +80,10 @@ class AppMonitor {
     
     // MARK: - Initialization
     
-    init(windowTitleProvider: WindowTitleProvider = WindowTitleProvider()) {
+    init(windowTitleProvider: WindowTitleProvider = WindowTitleProvider(),
+         idleDetector: IdleDetector = IdleDetector()) {
         self.windowTitleProvider = windowTitleProvider
+        self.idleDetector = idleDetector
     }
     
     // MARK: - Lifecycle
@@ -179,6 +190,26 @@ class AppMonitor {
         
         lastWindowTitle = newWindowTitle
         delegate?.appMonitor(self, didDetectWindowChange: newWindowTitle)
+        
+        // Also check idle state during window check (piggyback on existing timer)
+        checkIdleState()
+    }
+    
+    /**
+     Checks if the system is idle and notifies delegate of state changes.
+     
+     Called every 2 seconds during window title check. Only notifies
+     delegate when idle state actually changes (active → idle or idle → active).
+     */
+    private func checkIdleState() {
+        let threshold = UserPreferences.shared.idleThreshold
+        let isIdle = idleDetector.isSystemIdle(threshold: threshold)
+        
+        // Only notify if state changed
+        guard isIdle != wasIdle else { return }
+        
+        wasIdle = isIdle
+        delegate?.appMonitor(self, didDetectIdleStateChange: isIdle)
     }
     
     /**
