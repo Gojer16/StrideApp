@@ -12,9 +12,10 @@ struct HabitGridCard: View {
     let statistics: HabitStatistics
     
     let onDayTap: (Date) -> Void
-    let onDayLongPress: (Date) -> Void
+    let onShowHistory: (Date) -> Void
     let onAddToday: () -> Void
     let onViewDetails: () -> Void
+    let onIncrementTracked: () -> Void
     
     @State private var isHovered = false
     
@@ -26,16 +27,18 @@ struct HabitGridCard: View {
     private let accentColor: Color
     
     init(habit: Habit, entries: [Date: Double], streak: HabitStreak, statistics: HabitStatistics,
-         onDayTap: @escaping (Date) -> Void, onDayLongPress: @escaping (Date) -> Void,
-         onAddToday: @escaping () -> Void, onViewDetails: @escaping () -> Void) {
+         onDayTap: @escaping (Date) -> Void, onShowHistory: @escaping (Date) -> Void,
+         onAddToday: @escaping () -> Void, onViewDetails: @escaping () -> Void,
+         onIncrementTracked: @escaping () -> Void) {
         self.habit = habit
         self.entries = entries
         self.streak = streak
         self.statistics = statistics
         self.onDayTap = onDayTap
-        self.onDayLongPress = onDayLongPress
+        self.onShowHistory = onShowHistory
         self.onAddToday = onAddToday
         self.onViewDetails = onViewDetails
+        self.onIncrementTracked = onIncrementTracked
         self.accentColor = Color(hex: habit.color)
     }
     
@@ -49,7 +52,8 @@ struct HabitGridCard: View {
                 habit: habit,
                 entries: entries,
                 onDayTap: onDayTap,
-                onDayLongPress: onDayLongPress
+                onShowHistory: onShowHistory,
+                onIncrementTracked: onIncrementTracked
             )
             .padding(.vertical, 4)
             
