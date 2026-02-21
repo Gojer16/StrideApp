@@ -155,7 +155,7 @@ struct HabitTrackerView: View {
             .buttonStyle(.plain)
         }
         .opacity(isAnimating ? 1 : 0)
-        .offset(y: isAnimating ? 0 : -20)
+        .offset(y: isAnimating ? 0 : 20)
     }
     
     private func showingAddAddHabit() {
