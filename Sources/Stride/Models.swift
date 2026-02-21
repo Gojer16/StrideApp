@@ -203,17 +203,20 @@ struct UsageSession: Codable, Identifiable {
     var startTime: Date
     var endTime: Date?
     var duration: TimeInterval
+    var passiveDuration: TimeInterval
     
     init() {
         self.id = UUID()
         self.startTime = Date()
         self.endTime = nil
         self.duration = 0
+        self.passiveDuration = 0
     }
     
-    mutating func end() {
+    mutating func end(passiveDuration: TimeInterval = 0) {
         self.endTime = Date()
         self.duration = endTime?.timeIntervalSince(startTime) ?? 0
+        self.passiveDuration = passiveDuration
     }
 }
 
@@ -344,6 +347,7 @@ class UsageDatabase {
                 start_time REAL NOT NULL,
                 end_time REAL,
                 duration REAL NOT NULL DEFAULT 0,
+                passive_duration REAL NOT NULL DEFAULT 0,
                 FOREIGN KEY (window_id) REFERENCES windows(id) ON DELETE CASCADE
             );
         """
@@ -363,6 +367,7 @@ class UsageDatabase {
      3. Migrates old category names to category_id references
      */
     private func migrateDatabaseIfNeeded() {
+        // Migration 1: Add category_id column to applications
         let checkColumnSQL = "PRAGMA table_info(applications);"
         var statement: OpaquePointer?
         var hasCategoryIdColumn = false
@@ -401,6 +406,27 @@ class UsageDatabase {
         execute(fixCaseSQL)
         let fixUncategorizedSQL = "UPDATE applications SET category_id = '\(Category.uncategorizedId.lowercased())' WHERE category_id = 'uncategorized';"
         execute(fixUncategorizedSQL)
+        
+        // Migration 2: Add passive_duration column to sessions
+        let checkSessionsSQL = "PRAGMA table_info(sessions);"
+        var hasPassiveDuration = false
+        
+        if sqlite3_prepare_v2(db, checkSessionsSQL, -1, &statement, nil) == SQLITE_OK {
+            while sqlite3_step(statement) == SQLITE_ROW {
+                if let columnName = sqlite3_column_text(statement, 1) {
+                    let name = String(cString: columnName)
+                    if name == "passive_duration" {
+                        hasPassiveDuration = true
+                    }
+                }
+            }
+        }
+        sqlite3_finalize(statement)
+        
+        if !hasPassiveDuration {
+            let addPassiveDurationSQL = "ALTER TABLE sessions ADD COLUMN passive_duration REAL NOT NULL DEFAULT 0;"
+            execute(addPassiveDurationSQL)
+        }
     }
     
     private func initializeDefaultCategories() {
@@ -970,11 +996,13 @@ class UsageDatabase {
      
      - Parameter id: Session UUID
      */
-    func endSession(id: String) {
+    func endSession(id: String, passiveDuration: TimeInterval = 0) {
         let endTime = Date()
         let sql = """
             UPDATE sessions
-            SET end_time = ?, duration = ? - (SELECT start_time FROM sessions WHERE id = ?)
+            SET end_time = ?, 
+                duration = ? - (SELECT start_time FROM sessions WHERE id = ?),
+                passive_duration = ?
             WHERE id = ?;
         """
         
@@ -985,7 +1013,8 @@ class UsageDatabase {
                 sqlite3_bind_double(statement, 1, endTime.timeIntervalSince1970)
                 sqlite3_bind_double(statement, 2, endTime.timeIntervalSince1970)
                 sqlite3_bind_text(statement, 3, (id as NSString).utf8String, -1, nil)
-                sqlite3_bind_text(statement, 4, (id as NSString).utf8String, -1, nil)
+                sqlite3_bind_double(statement, 4, passiveDuration)
+                sqlite3_bind_text(statement, 5, (id as NSString).utf8String, -1, nil)
                 sqlite3_step(statement)
             }
             sqlite3_finalize(statement)
@@ -1090,6 +1119,33 @@ class UsageDatabase {
             }
             sqlite3_finalize(statement)
             return totalTime
+        }
+    }
+    
+    func getTodayPassiveTime(for appId: String) -> TimeInterval {
+        guard db != nil else { return 0 }
+        
+        // Use logical day boundary from UserPreferences
+        let startOfDay = UserPreferences.shared.logicalStartOfToday
+        let sql = """
+            SELECT SUM(passive_duration) FROM sessions
+            JOIN windows ON sessions.window_id = windows.id
+            WHERE windows.app_id = ? AND sessions.start_time >= ?;
+        """
+        
+        return dbQueue.sync {
+            var statement: OpaquePointer?
+            var totalPassive: TimeInterval = 0
+            
+            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+                sqlite3_bind_text(statement, 1, (appId as NSString).utf8String, -1, nil)
+                sqlite3_bind_double(statement, 2, startOfDay.timeIntervalSince1970)
+                if sqlite3_step(statement) == SQLITE_ROW {
+                    totalPassive = sqlite3_column_double(statement, 0)
+                }
+            }
+            sqlite3_finalize(statement)
+            return totalPassive
         }
     }
     
