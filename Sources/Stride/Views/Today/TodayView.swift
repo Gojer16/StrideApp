@@ -19,14 +19,36 @@ import SwiftUI
  * - Staggered spring animations for an energetic, premium feel.
  */
 struct TodayView: View {
-    @State private var applications: [AppUsage] = []
-    @State private var totalTime: TimeInterval = 0
-    @State private var totalPassiveTime: TimeInterval = 0
-    @State private var totalVisits: Int = 0
-    @State private var categoryBreakdown: [(category: Category, time: TimeInterval)] = []
+    @State private var todayStats: TodayStats = .empty
+    @State private var isFirstLoad: Bool = true
     
     /// Controls the staggered entrance of UI components
     @State private var isLoaded = false
+    
+    // Computed properties for backward compatibility
+    private var applications: [TodayStats.AppStats] {
+        todayStats.apps
+    }
+    
+    private var totalTime: TimeInterval {
+        todayStats.totalActiveTime
+    }
+    
+    private var totalPassiveTime: TimeInterval {
+        todayStats.totalPassiveTime
+    }
+    
+    private var totalVisits: Int {
+        todayStats.totalVisits
+    }
+    
+    private var categoryBreakdown: [(category: Category, time: TimeInterval)] {
+        todayStats.categoryBreakdown
+    }
+    
+    private var topApps: [TodayStats.AppStats] {
+        Array(applications.prefix(5))
+    }
     
     // MARK: - Design System Constants
     
@@ -34,10 +56,6 @@ struct TodayView: View {
     private let textColor = Color(red: 0.1, green: 0.1, blue: 0.1)
     private let secondaryText = Color(red: 0.4, green: 0.4, blue: 0.4)
     private let accentColor = Color(hex: "#4A7C59") // Stride Moss
-    
-    private var topApps: [AppUsage] {
-        Array(applications.prefix(5))
-    }
     
     var body: some View {
         ZStack {
@@ -241,13 +259,12 @@ struct TodayView: View {
                 .foregroundColor(secondaryText)
             
             VStack(spacing: 12) {
-                ForEach(Array(topApps.enumerated()), id: \.element.id) { index, app in
-                    let appTime = UsageDatabase.shared.getTodayTime(for: app.id.uuidString)
-                    let percentage = totalTime > 0 ? appTime / totalTime : 0
+                ForEach(Array(topApps.enumerated()), id: \.element.app.id) { index, appStats in
+                    let percentage = totalTime > 0 ? appStats.activeTime / totalTime : 0
                     
                     TodayAppRow(
-                        app: app,
-                        todayTime: appTime,
+                        app: appStats.app,
+                        todayTime: appStats.activeTime,
                         percentage: percentage,
                         rank: index + 1
                     )
@@ -287,38 +304,66 @@ struct TodayView: View {
     /**
      * Fetches today's applications and pre-calculates the totals and breakdowns.
      */
+    /**
+     Fetches today's data in the background and updates UI on main thread.
+     
+     **Performance Optimization:**
+     - Uses single batch query instead of N individual queries
+     - Runs on background thread to avoid blocking UI
+     - Shows cached data immediately (from previous load)
+     - Updates smoothly when fresh data arrives
+     */
     private func loadData() {
-        let allApps = UsageDatabase.shared.getAllApplications()
-        
-        // Filter out apps not used today and sort by duration
-        applications = allApps.filter { UsageDatabase.shared.getTodayTime(for: $0.id.uuidString) > 0 }
-        .sorted {
-            UsageDatabase.shared.getTodayTime(for: $0.id.uuidString) >
-            UsageDatabase.shared.getTodayTime(for: $1.id.uuidString)
-        }
-        
-        totalTime = applications.reduce(0) {
-            $0 + UsageDatabase.shared.getTodayTime(for: $1.id.uuidString)
-        }
-        
-        totalPassiveTime = applications.reduce(0) {
-            $0 + UsageDatabase.shared.getTodayPassiveTime(for: $1.id.uuidString)
-        }
-        
-        // Note: Currently returns cumulative visits, could be optimized for "today-only" visits
-        totalVisits = applications.reduce(0) {
-            $0 + $1.visitCount
-        }
-        
-        // Calculate category percentage distribution
-        let categories = UsageDatabase.shared.getAllCategories()
-        categoryBreakdown = categories.compactMap { category in
-            let categoryApps = applications.filter { $0.categoryId == category.id.uuidString.lowercased() }
-            let categoryTime = categoryApps.reduce(0) {
-                $0 + UsageDatabase.shared.getTodayTime(for: $1.id.uuidString)
+        Task {
+            let stats = await loadDataAsync()
+            await MainActor.run {
+                self.todayStats = stats
+                self.isFirstLoad = false
             }
-            return categoryTime > 0 ? (category, categoryTime) : nil
-        }.sorted { $0.time > $1.time }
+        }
+    }
+    
+    private func loadDataAsync() async -> TodayStats {
+        // Run database queries on background thread
+        return await Task.detached(priority: .userInitiated) {
+            let database = UsageDatabase.shared
+            
+            // Single batch query - gets all today's data at once
+            let todayStatsMap = database.getTodayStats()
+            
+            // Get all apps and filter/sort using cached stats
+            let allApps = database.getAllApplications()
+            let appsWithStats = allApps.compactMap { app -> TodayStats.AppStats? in
+                guard let stats = todayStatsMap[app.id.uuidString] else { return nil }
+                guard stats.active > 0 || stats.passive > 0 else { return nil }
+                return TodayStats.AppStats(
+                    app: app,
+                    activeTime: stats.active,
+                    passiveTime: stats.passive
+                )
+            }.sorted { $0.activeTime > $1.activeTime }
+            
+            // Calculate totals
+            let totalActive = appsWithStats.reduce(0) { $0 + $1.activeTime }
+            let totalPassive = appsWithStats.reduce(0) { $0 + $1.passiveTime }
+            let totalVisits = appsWithStats.reduce(0) { $0 + $1.app.visitCount }
+            
+            // Calculate category breakdown
+            let categories = database.getAllCategories()
+            let categoryBreakdown = categories.compactMap { category -> (category: Category, time: TimeInterval)? in
+                let categoryApps = appsWithStats.filter { $0.app.categoryId == category.id.uuidString.lowercased() }
+                let categoryTime = categoryApps.reduce(0) { $0 + $1.activeTime }
+                return categoryTime > 0 ? (category, categoryTime) : nil
+            }.sorted { $0.time > $1.time }
+            
+            return TodayStats(
+                apps: appsWithStats,
+                totalActiveTime: totalActive,
+                totalPassiveTime: totalPassive,
+                totalVisits: totalVisits,
+                categoryBreakdown: categoryBreakdown
+            )
+        }.value
     }
     
     private func formattedDate() -> String {
