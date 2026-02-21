@@ -6,6 +6,14 @@ All notable changes to the Stride project will be documented in this file.
 
 ### 🚀 Major Changes
 
+- **Sparklines for Top Apps:** Added temporal context to reveal usage patterns throughout the day.
+  - **Hourly Visualization:** Tiny line graphs next to top 3 apps showing when they were used (24-hour breakdown).
+  - **Pattern Recognition:** Reveals "Deep Work" in morning vs "Social Media" in afternoon patterns.
+  - **Smart Loading:** Only loads hourly data for top 3 apps (performance optimization).
+  - **Category-Colored:** Sparklines match app category colors for visual consistency.
+  - **Minimal Design:** 70×20px sparklines with gradient fill, non-intrusive and elegant.
+  - **Actionable Insights:** Transforms "Xcode: 3hrs" into "Xcode: 3hrs ▁▂▅█▇▃▁" showing morning focus.
+
 - **Browser Domain Parsing:** Transformed generic browser time into granular domain-level insights.
   - **Domain Extraction:** Intelligent parser extracts domains from browser window titles (Chrome, Safari, Firefox, Edge, Brave, Arc).
   - **Web Activity Section:** New section in Today tab showing top domains with time breakdown (e.g., "github.com: 2hrs | stackoverflow.com: 1hr").
@@ -39,6 +47,13 @@ All notable changes to the Stride project will be documented in this file.
   - **Scope:** Feature applies only to Today tab; other views (This Week, All Apps) continue using calendar days.
 
 ### ✨ Features
+
+- **Habit Tracker Performance & Reliability Improvements:**
+  - **Debounced Clicks:** 200ms debounce on increment actions prevents rapid-fire database writes
+  - **Date Normalization:** Explicit date normalization in all database operations handles DST/timezone shifts
+  - **Thread Safety:** Serial DispatchQueue ensures no race conditions on rapid clicks
+  - **Optimistic UI:** Animations trigger immediately while database writes happen asynchronously
+  - **Performance Notes:** Added documentation for future scaling to 50+ habits
 
 - **Habit Tracker Tooltip Improvements:**
   - **Streak Badge Tooltip:** Explains "active" status (completed today or yesterday, resets after 2 days)
