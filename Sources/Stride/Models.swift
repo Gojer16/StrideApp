@@ -37,6 +37,7 @@ struct TodayStats {
         let app: AppUsage
         let activeTime: TimeInterval
         let passiveTime: TimeInterval
+        let hourlyUsage: [TimeInterval]  // 24 values for sparkline
     }
     
     let apps: [AppStats]
@@ -1388,6 +1389,61 @@ class UsageDatabase {
             
             // Return sorted by total time
             return Array(domains.values).sorted { $0.totalTime > $1.totalTime }
+        }
+    }
+    
+    /**
+     Returns hourly usage breakdown for a specific app on a given day.
+     
+     Returns an array of 24 values representing usage in each hour (0-23).
+     Used for sparkline visualizations showing usage patterns throughout the day.
+     
+     - Parameters:
+        - appId: The application ID
+        - date: The date to query (defaults to today)
+     - Returns: Array of 24 TimeInterval values (one per hour)
+     */
+    func getHourlyUsage(for appId: String, on date: Date = Date()) -> [TimeInterval] {
+        guard db != nil else { return Array(repeating: 0, count: 24) }
+        
+        let calendar = Calendar.current
+        let startOfDay = UserPreferences.shared.logicalStartOfToday
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+        
+        let sql = """
+            SELECT 
+                CAST((sessions.start_time - ?) / 3600 AS INTEGER) as hour,
+                SUM(sessions.duration) as total_time
+            FROM sessions
+            JOIN windows ON sessions.window_id = windows.id
+            WHERE windows.app_id = ? 
+                AND sessions.start_time >= ? 
+                AND sessions.start_time < ?
+            GROUP BY hour
+            ORDER BY hour;
+        """
+        
+        return dbQueue.sync {
+            var hourlyData = Array(repeating: 0.0, count: 24)
+            var statement: OpaquePointer?
+            
+            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+                sqlite3_bind_double(statement, 1, startOfDay.timeIntervalSince1970)
+                sqlite3_bind_text(statement, 2, (appId as NSString).utf8String, -1, nil)
+                sqlite3_bind_double(statement, 3, startOfDay.timeIntervalSince1970)
+                sqlite3_bind_double(statement, 4, endOfDay.timeIntervalSince1970)
+                
+                while sqlite3_step(statement) == SQLITE_ROW {
+                    let hour = Int(sqlite3_column_int(statement, 0))
+                    let time = sqlite3_column_double(statement, 1)
+                    
+                    if hour >= 0 && hour < 24 {
+                        hourlyData[hour] = time
+                    }
+                }
+            }
+            sqlite3_finalize(statement)
+            return hourlyData
         }
     }
     
