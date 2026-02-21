@@ -43,6 +43,15 @@ class SessionManager {
     /// Current window being tracked
     private(set) var currentWindow: WindowUsage?
     
+    /// Whether the current session is paused due to idle detection
+    private(set) var isPaused: Bool = false
+    
+    /// Accumulated passive time for current session
+    private var passiveTimeAccumulated: TimeInterval = 0
+    
+    /// Time when session was paused (for calculating passive duration)
+    private var pauseStartTime: Date?
+    
     /// Reference to database for persistence
     private let database: UsageDatabase
     
@@ -111,20 +120,64 @@ class SessionManager {
             return
         }
         
+        // If session is paused, accumulate final passive time
+        if isPaused, let pauseStart = pauseStartTime {
+            passiveTimeAccumulated += Date().timeIntervalSince(pauseStart)
+        }
+        
         // End the session in the database (async)
-        database.endSession(id: session.id.uuidString)
+        database.endSession(id: session.id.uuidString, passiveDuration: passiveTimeAccumulated)
         
-        // Calculate duration
-        let duration = Date().timeIntervalSince(session.startTime)
+        // Calculate active duration (total - passive)
+        let totalDuration = Date().timeIntervalSince(session.startTime)
+        let activeDuration = totalDuration - passiveTimeAccumulated
         
-        // Update totals (async operations)
-        database.updateWindowTime(id: window.id.uuidString, duration: duration)
-        database.updateAppTime(id: app.id.uuidString, duration: duration)
+        // Update totals with active time only (async operations)
+        database.updateWindowTime(id: window.id.uuidString, duration: activeDuration)
+        database.updateAppTime(id: app.id.uuidString, duration: activeDuration)
         
         // Clear current session state
         currentSession = nil
         currentWindow = nil
         currentApp = nil
+        isPaused = false
+        passiveTimeAccumulated = 0
+        pauseStartTime = nil
+    }
+    
+    // MARK: - Pause/Resume Control
+    
+    /**
+     Pauses the current session due to idle detection.
+     
+     Marks the session as paused and records the pause start time.
+     Passive time will be accumulated when session resumes or ends.
+     */
+    func pauseSession() {
+        guard currentSession != nil, !isPaused else { return }
+        
+        isPaused = true
+        pauseStartTime = Date()
+    }
+    
+    /**
+     Resumes the current session after idle period.
+     
+     Accumulates the passive time and marks session as active again.
+     The same session continues (no new session created).
+     */
+    func resumeSession() {
+        guard currentSession != nil, isPaused, let pauseStart = pauseStartTime else {
+            return
+        }
+        
+        // Accumulate passive time
+        let passiveDuration = Date().timeIntervalSince(pauseStart)
+        passiveTimeAccumulated += passiveDuration
+        
+        // Resume active tracking
+        isPaused = false
+        pauseStartTime = nil
     }
     
     // MARK: - Session Queries
@@ -147,5 +200,22 @@ class SessionManager {
     /// Returns the title of the currently tracked window, or nil
     var currentWindowTitle: String? {
         return currentWindow?.title
+    }
+    
+    /// Returns the active time for the current session (excluding passive time)
+    var currentActiveTime: TimeInterval? {
+        guard let session = currentSession else { return nil }
+        let totalTime = Date().timeIntervalSince(session.startTime)
+        return totalTime - passiveTimeAccumulated
+    }
+    
+    /// Returns the passive time accumulated in the current session
+    var currentPassiveTime: TimeInterval {
+        var passive = passiveTimeAccumulated
+        // If currently paused, add ongoing passive time
+        if isPaused, let pauseStart = pauseStartTime {
+            passive += Date().timeIntervalSince(pauseStart)
+        }
+        return passive
     }
 }
