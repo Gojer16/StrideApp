@@ -159,9 +159,19 @@ The Views directory constitutes the presentation layer of the Stride screen time
 - **DetailStatBox.swift (33 lines):** Compact stat display component.
 - **DetailInfoRow.swift:** Key-value row for detail views with label and value.
 - **AppCategoryPickerView.swift:** Reusable category selection picker with search.
+- **DesignSystem.swift:** Centralized design tokens (colors, typography, spacing, shadows, animations).
+- **DonutChart.swift:** Reusable donut chart component with legend support.
+
+### ViewModels/
+- **HabitTrackerViewModel.swift:** ObservableObject for habit data management, stats calculation, CRUD operations.
+- **WeeklyLogViewModel.swift:** ObservableObject for weekly log data, week navigation, entry management.
 
 ### MenuBar/
 - **MenuBarView.swift (66 lines):** Compact popover view for menu bar status item. Shows activeAppName, formattedTime, and Open/Quit buttons.
+
+### ViewModels/
+- **HabitTrackerViewModel.swift:** ObservableObject for habit data management, stats calculation, CRUD operations.
+- **WeeklyLogViewModel.swift:** ObservableObject for weekly log data, week navigation, entry management.
 
 ## 5. Public API
 
