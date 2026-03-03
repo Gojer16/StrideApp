@@ -39,7 +39,7 @@ struct TodayAppRow: View {
     }
     
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(alignment: .center, spacing: 14) {
             // MARK: Icon Section
             ZStack {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -52,25 +52,24 @@ struct TodayAppRow: View {
             }
             
             // MARK: Details Section
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(app.name)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+            VStack(alignment: .leading, spacing: 8) {
+                Text(app.name)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                
+                HStack(spacing: 6) {
+                    Image(systemName: category.icon)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(categoryColor)
                     
                     Text(category.name.uppercased())
                         .font(.system(size: 8, weight: .black))
                         .foregroundColor(.secondary.opacity(0.6))
                         .tracking(1)
-                    
-                    // Sparkline for top 3 apps
-                    if rank <= 3 && !hourlyUsage.isEmpty {
-                        Sparkline(data: hourlyUsage, color: categoryColor)
-                            .opacity(0.8)
-                    }
                 }
                 
-                // Secondary visualization of usage relative to total
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule()
@@ -84,11 +83,16 @@ struct TodayAppRow: View {
                 }
                 .frame(height: 4)
             }
-            
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
             
             // MARK: Metrics Section
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .trailing, spacing: 8) {
+                if rank <= 3 && !hourlyUsage.isEmpty {
+                    Sparkline(data: hourlyUsage, color: categoryColor)
+                        .opacity(0.8)
+                        .frame(width: 78, height: 22)
+                }
+                
                 Text(todayTime.formatted())
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
@@ -97,9 +101,10 @@ struct TodayAppRow: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.secondary)
             }
+            .frame(width: 86, alignment: .trailing)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 14)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(isHovered ? Color.white : Color.white.opacity(0.5))
