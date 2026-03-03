@@ -2,6 +2,19 @@
 
 All notable changes to the Stride project will be documented in this file.
 
+## [Unreleased] - 2026-03-02
+
+### ✨ Features
+
+- **Today Tab Bento Layout:** Rebuilt the Today dashboard into a compact bento grid with equal-height tiles.
+  - **Balanced Density:** KPI row plus a 2x2 tile grid keeps key data above the fold.
+  - **At a Glance Tile:** New summary tile highlights top category, focused app, and top site.
+  - **Focused App KPI:** Replaces App Switches with a clear, human-readable leading app metric.
+  - **Tight Lists:** Top Apps and Top Sites capped for clean tile fit without overlap.
+  - **Live Snapshot:** Today metrics stay fresh by overlaying the active session.
+  - **Hover Stability:** Web rows keep identity stable to avoid hover flicker.
+  - **Copy Polish:** Loading and empty states are warm and clear.
+
 ## [Unreleased] - 2026-02-21
 
 ### 🚀 Major Changes
