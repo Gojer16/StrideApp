@@ -19,7 +19,10 @@ import SwiftUI
  * - High-contrast editorial headers for a premium, reported feel.
  */
 struct WeeklyView: View {
+    @EnvironmentObject private var appState: AppState
+    @StateObject private var database = UsageDatabase.shared
     @State private var weeklyData: [(date: Date, time: TimeInterval)] = []
+    @State private var persistedWeeklyData: [(date: Date, time: TimeInterval)] = []
     @State private var categoryTotals: [(category: Category, time: TimeInterval)] = []
     
     /// Controls the entrance animations for the dashboard components
@@ -27,6 +30,10 @@ struct WeeklyView: View {
     
     /// The index of the day currently focused in the chart
     @State private var selectedDay: Int? = nil
+    
+    @State private var showOverview = true
+    @State private var showCategories = false
+    @State private var showLog = false
     
     // MARK: - Design System Constants
     
@@ -47,47 +54,111 @@ struct WeeklyView: View {
         weeklyData.reduce(0) { $0 + $1.time }
     }
     
+    private var hasUsageData: Bool {
+        weeklyData.contains { $0.time > 0 }
+    }
+    
     var body: some View {
         ZStack {
             backgroundColor.ignoresSafeArea()
             
             ScrollView {
-                VStack(spacing: 48) {
+                VStack(spacing: 20) {
                     // MARK: 1. Editorial Header
                     headerSection
-                        .padding(.top, 24)
+                        .padding(.top, 12)
                     
-                    if weeklyData.isEmpty {
+                    if !hasUsageData {
                         emptyStateView
                     } else {
-                        // MARK: 2. Weekly Performance Grid
-                        metricsRow
+                        sectionToggleBar
                         
-                        // MARK: 3. Categories This Week
-                        categoriesSection
+                        if showOverview {
+                            metricsStrip
+                            compactChartCard
+                        }
                         
-                        // MARK: 4. Distribution Visualization
-                        chartSection
+                        if showCategories {
+                            categoriesInlineSection
+                        }
                         
-                        // MARK: 5. Historical Log
-                        dayBreakdownSection
+                        if showLog {
+                            compactLogCard
+                        }
+                        
+                        if !showOverview && !showCategories && !showLog {
+                            collapsedHint
+                        }
                     }
                     
                     Spacer()
                 }
                 .padding(.horizontal, 40)
-                .padding(.bottom, 40)
+                .padding(.bottom, 28)
             }
         }
         .onAppear {
-            loadWeeklyData()
+            refreshWeeklyData()
             withAnimation(DesignSystem.Animation.entrance.spring) {
                 isLoaded = true
             }
         }
+        .onChange(of: database.lastUpdate) {
+            refreshWeeklyData()
+        }
+        .onChange(of: appState.elapsedTime) {
+            applyLiveSessionOverlay()
+        }
+        .onChange(of: appState.activeAppName) {
+            applyLiveSessionOverlay()
+        }
     }
     
     // MARK: - Sections
+    
+    private var sectionToggleBar: some View {
+        HStack(spacing: 0) {
+            SectionToggleButton(
+                title: "Overview",
+                isOn: showOverview,
+                color: brandMoss
+            ) {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showOverview.toggle()
+                }
+            }
+            
+            SectionToggleButton(
+                title: "Categories",
+                isOn: showCategories,
+                color: brandSlate
+            ) {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showCategories.toggle()
+                }
+            }
+            
+            SectionToggleButton(
+                title: "Log",
+                isOn: showLog,
+                color: brandTerracotta
+            ) {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showLog.toggle()
+                }
+            }
+        }
+        .padding(4)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.white.opacity(0.74))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                )
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
     
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -120,113 +191,184 @@ struct WeeklyView: View {
         .offset(y: isLoaded ? 0 : 20)
     }
     
-    private var metricsRow: some View {
-        HStack(spacing: 20) {
-            SummaryMetricCard(
+    private var metricsStrip: some View {
+        HStack(spacing: 0) {
+            CompactMetricSegment(
                 title: "Daily Average",
                 value: calculateAverage(),
                 icon: "clock.arrow.circlepath",
-                color: brandMoss,
-                delay: 0.1,
-                isLoaded: isLoaded
+                color: brandMoss
             )
             
-            SummaryMetricCard(
+            Divider().overlay(Color.black.opacity(0.08))
+            
+            CompactMetricSegment(
                 title: "Peak Activity",
                 value: findMostActiveDayValue(),
                 icon: "flame.fill",
-                color: brandTerracotta,
-                delay: 0.2,
-                isLoaded: isLoaded
+                color: brandTerracotta
             )
             
-            SummaryMetricCard(
+            Divider().overlay(Color.black.opacity(0.08))
+            
+            CompactMetricSegment(
                 title: "Consistency",
                 value: calculateConsistency(),
                 icon: "checkmark.seal.fill",
-                color: brandSlate,
-                delay: 0.3,
-                isLoaded: isLoaded
+                color: brandSlate
             )
         }
+        .frame(maxWidth: .infinity)
+        .frame(height: 108)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.white.opacity(0.82))
+                .shadow(color: .black.opacity(0.025), radius: 10, x: 0, y: 3)
+        )
+        .opacity(isLoaded ? 1 : 0)
+        .offset(y: isLoaded ? 0 : 14)
+        .animation(DesignSystem.Animation.entrance.spring.delay(0.2), value: isLoaded)
     }
     
-    private var categoriesSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("CATEGORIES THIS WEEK")
-                .font(.system(size: 11, weight: .black))
-                .tracking(1.5)
-                .foregroundColor(secondaryText)
+    private var categoriesInlineSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("CATEGORIES")
+                    .font(.system(size: 10, weight: .black))
+                    .tracking(1.4)
+                    .foregroundColor(secondaryText)
+                
+                if !categoryTotals.isEmpty {
+                    Text("TOP CATEGORIES")
+                        .font(.system(size: 9, weight: .black))
+                        .tracking(1.2)
+                        .foregroundColor(brandMoss.opacity(0.9))
+                }
+            }
             
             if categoryTotals.isEmpty {
-                emptyCategoriesView
+                Text("No category data for this week")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(secondaryText)
             } else {
                 categoriesListView
             }
         }
-        .padding(24)
-        .background(glassMaterial)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .opacity(isLoaded ? 1 : 0)
-        .offset(y: isLoaded ? 0 : 20)
-        .animation(DesignSystem.Animation.entrance.spring.delay(0.35), value: isLoaded)
+        .offset(y: isLoaded ? 0 : 10)
+        .animation(DesignSystem.Animation.entrance.spring.delay(0.28), value: isLoaded)
     }
     
-    private var emptyCategoriesView: some View {
-        HStack {
-            Image(systemName: "folder")
-                .foregroundColor(secondaryText.opacity(0.5))
-            Text("No category data for this week")
-                .font(.system(size: 14, weight: .medium))
+    private var collapsedHint: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "eye.slash")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(secondaryText.opacity(0.8))
+            Text("All sections hidden. Toggle one to view this week's data.")
+                .font(.system(size: 12, weight: .medium))
                 .foregroundColor(secondaryText)
         }
-        .padding(.vertical, 20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.white.opacity(0.5))
+        )
     }
     
     private var categoriesListView: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(categoryTotals, id: \.category.id) { item in
-                    categoryCard(for: item)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                ForEach(Array(categoryTotals.enumerated()), id: \.element.category.id) { index, item in
+                    categoryCard(for: item, rank: index + 1)
+                }
+            }
+            
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 132), spacing: 8)],
+                alignment: .leading,
+                spacing: 8
+            ) {
+                ForEach(Array(categoryTotals.enumerated()), id: \.element.category.id) { index, item in
+                    categoryCard(for: item, rank: index + 1)
                 }
             }
         }
     }
     
-    private func categoryCard(for item: (category: Category, time: TimeInterval)) -> some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(Color(hex: item.category.color))
-                .frame(width: 10, height: 10)
+    private func categoryCard(for item: (category: Category, time: TimeInterval), rank: Int) -> some View {
+        let isTopThree = rank <= 3
+        let isTopOne = rank == 1
+        let accent = Color(hex: item.category.color)
+        let rankingLabel = rank == 1 ? "1st" : (rank == 2 ? "2nd" : "3rd")
+        
+        return HStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(accent)
+                    .frame(width: 9, height: 9)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.category.name)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(textColor)
+                    Text(formatTime(item.time))
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundColor(secondaryText)
+                }
+            }
             
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.category.name)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(textColor)
-                Text(formatTime(item.time))
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundColor(secondaryText)
+            Spacer(minLength: 2)
+            
+            HStack(spacing: 6) {
+                if isTopOne {
+                    Image(systemName: "crown.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(accent.opacity(0.72))
+                }
+                
+                if isTopThree {
+                    Text(rankingLabel)
+                        .font(.system(size: 9, weight: .black))
+                        .tracking(0.6)
+                        .foregroundColor(accent)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(accent.opacity(0.14))
+                        )
+                }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .frame(minHeight: 46, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.white.opacity(0.6))
-                .shadow(color: .black.opacity(0.03), radius: 8, x: 0, y: 4)
+            Capsule(style: .continuous)
+                .fill(isTopThree ? Color.white.opacity(0.96) : Color.white.opacity(0.84))
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(isTopThree ? accent.opacity(0.28) : Color.black.opacity(0.08), lineWidth: 1)
+                )
+        )
+        .shadow(
+            color: isTopThree ? accent.opacity(0.12) : .black.opacity(0.02),
+            radius: isTopThree ? 8 : 4,
+            x: 0,
+            y: isTopThree ? 3 : 1
         )
     }
     
-    /**
-     * An interactive bar chart showing usage trends.
-     * 
-     * Users can click individual bars to see exact time values for that day.
-     */
-    private var chartSection: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            HStack {
+    private var compactChartCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
                 Text("Daily Utilization")
-                    .font(.system(size: 11, weight: .black))
-                    .tracking(1.5)
+                    .font(.system(size: 10, weight: .black))
+                    .tracking(1.3)
                     .foregroundColor(secondaryText)
                 
                 Spacer()
@@ -234,79 +376,107 @@ struct WeeklyView: View {
                 if let selected = selectedDay {
                     let data = weeklyData[selected]
                     Text("\(dayLabel(for: data.date, full: true)) • \(formatTime(data.time))")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundColor(brandMoss)
-                        .transition(.opacity.combined(with: .move(edge: .trailing)))
                 }
             }
             
-            // The Bar Chart Container
-            HStack(alignment: .bottom, spacing: 12) {
-                ForEach(weeklyData.indices, id: \.self) { index in
-                    let item = weeklyData[index]
-                    let height = maxTime > 0 ? (item.time / maxTime) * 160 : 0
-                    let isSelected = selectedDay == index
-                    let isToday = Calendar.current.isDateInToday(item.date)
-                    
-                    VStack(spacing: 12) {
-                        ZStack(alignment: .bottom) {
-                            // Empty Track
-                            Capsule()
-                                .fill(Color.black.opacity(0.02))
-                                .frame(width: 32, height: 160)
-                            
-                            // Progress Bar
-                            Capsule()
-                                .fill(isToday ? brandTerracotta : brandMoss)
-                                .frame(width: 32, height: max(CGFloat(height), 4))
-                                .opacity(isSelected || selectedDay == nil ? 1 : 0.3)
-                                .shadow(color: (isToday ? brandTerracotta : brandMoss).opacity(isSelected ? 0.3 : 0), radius: 8, x: 0, y: 4)
-                        }
-                        .onTapGesture {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                selectedDay = selectedDay == index ? nil : index
-                            }
-                        }
+            HStack(alignment: .bottom, spacing: 10) {
+                yAxisTicks
+                
+                HStack(alignment: .bottom, spacing: 8) {
+                    ForEach(weeklyData.indices, id: \.self) { index in
+                        let item = weeklyData[index]
+                        let height = maxTime > 0 ? (item.time / maxTime) * 116 : 0
+                        let isSelected = selectedDay == index
+                        let isToday = Calendar.current.isDateInToday(item.date)
                         
-                        Text(dayLabel(for: item.date))
-                            .font(.system(size: 11, weight: isToday ? .bold : .medium))
-                            .foregroundColor(isToday ? brandTerracotta : secondaryText)
+                        VStack(spacing: 8) {
+                            ZStack(alignment: .bottom) {
+                                Capsule()
+                                    .fill(Color.black.opacity(0.025))
+                                    .frame(width: 26, height: 116)
+                                
+                                Capsule()
+                                    .fill(isToday ? brandTerracotta : brandMoss)
+                                    .frame(width: 26, height: max(CGFloat(height), 4))
+                                    .opacity(isSelected || selectedDay == nil ? 1 : 0.3)
+                            }
+                            .onTapGesture {
+                                withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
+                                    selectedDay = selectedDay == index ? nil : index
+                                }
+                            }
+                            
+                            Text(dayLabel(for: item.date))
+                                .font(.system(size: 11, weight: isToday ? .bold : .medium))
+                                .foregroundColor(isToday ? brandTerracotta : secondaryText)
+                        }
+                        .frame(maxWidth: .infinity)
                     }
-                    .frame(maxWidth: .infinity)
                 }
             }
-            .frame(height: 200)
-            .padding(32)
-            .background(glassMaterial)
         }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: 188)
+        .background(glassMaterialCompact)
         .opacity(isLoaded ? 1 : 0)
-        .offset(y: isLoaded ? 0 : 30)
-        .animation(DesignSystem.Animation.entrance.spring.delay(0.4), value: isLoaded)
+        .offset(y: isLoaded ? 0 : 16)
+        .animation(DesignSystem.Animation.entrance.spring.delay(0.35), value: isLoaded)
     }
     
-    private var dayBreakdownSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("DETAILED LOG")
-                .font(.system(size: 11, weight: .black))
-                .tracking(1.5)
-                .foregroundColor(secondaryText)
-            
-            VStack(spacing: 8) {
-                ForEach(Array(weeklyData.enumerated()), id: \.offset) { index, item in
-                    let percentage = maxTime > 0 ? item.time / maxTime : 0
-                    DayRow(
-                        date: item.date,
-                        time: item.time,
-                        percentage: percentage,
-                        isToday: Calendar.current.isDateInToday(item.date),
-                        color: brandMoss
-                    )
-                    .opacity(isLoaded ? 1 : 0)
-                    .offset(x: isLoaded ? 0 : -20)
-                    .animation(DesignSystem.Animation.entrance.spring.delay(0.5 + Double(index) * 0.05), value: isLoaded)
+    private var yAxisTicks: some View {
+        VStack(alignment: .trailing, spacing: 0) {
+            ForEach(chartTickValues.indices, id: \.self) { index in
+                let tick = chartTickValues[index]
+                Text(formatTime(tick))
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(secondaryText.opacity(0.8))
+                
+                if index < chartTickValues.count - 1 {
+                    Spacer(minLength: 0)
                 }
             }
         }
+        .frame(width: 34, height: 110, alignment: .trailing)
+    }
+    
+    private var chartTickValues: [TimeInterval] {
+        guard maxTime > 0 else { return [0, 0, 0] }
+        return [maxTime, maxTime * 0.5, 0]
+    }
+    
+    private var compactLogCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Detailed Log")
+                .font(.system(size: 10, weight: .black))
+                .tracking(1.3)
+                .foregroundColor(secondaryText)
+            
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 6) {
+                    ForEach(Array(weeklyData.enumerated()), id: \.offset) { _, item in
+                        let percentage = maxTime > 0 ? item.time / maxTime : 0
+                        CompactDayRow(
+                            date: item.date,
+                            formattedTime: formatTime(item.time),
+                            percentage: percentage,
+                            isToday: Calendar.current.isDateInToday(item.date),
+                            color: brandMoss
+                        )
+                    }
+                }
+            }
+            .frame(minHeight: 156, maxHeight: 156)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: 188)
+        .background(glassMaterialCompact)
+        .opacity(isLoaded ? 1 : 0)
+        .offset(y: isLoaded ? 0 : 16)
+        .animation(DesignSystem.Animation.entrance.spring.delay(0.4), value: isLoaded)
     }
     
     private var emptyStateView: some View {
@@ -328,33 +498,92 @@ struct WeeklyView: View {
      * Common glassmorphism style for weekly widgets.
      */
     private var glassMaterial: some View {
-        RoundedRectangle(cornerRadius: 32, style: .continuous)
-            .fill(Color.white.opacity(0.6))
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .fill(Color.white.opacity(0.6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.03), radius: 20, x: 0, y: 10)
+    }
+    
+    private var glassMaterialCompact: some View {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .fill(Color.white.opacity(0.72))
             .overlay(
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(Color.white.opacity(0.6), lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.03), radius: 20, x: 0, y: 10)
+            .shadow(color: .black.opacity(0.025), radius: 10, x: 0, y: 3)
     }
     
     /**
-     * Aggregates usage time for the last 7 days from the UsageDatabase.
+     * Aggregates usage time for the current calendar week (Monday through today).
      */
-    private func loadWeeklyData() {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
+    private func refreshWeeklyData() {
+        let weekDates = Self.weekDatesThroughToday()
         
-        // Construct a list of the last 7 days (ordered chronologically)
-        weeklyData = (0..<7).map { dayOffset in
-            let date = calendar.date(byAdding: .day, value: -dayOffset, to: today)!
-            let time = UsageDatabase.shared.getTime(for: date)
-            return (date, time)
-        }.reversed()
-        
-        // Load category totals for the same 7-day period
-        if let firstDay = weeklyData.first?.date {
-            categoryTotals = UsageDatabase.shared.getCategoryTotalsForWeek(startingFrom: firstDay)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let timesByDate = database.getTimes(for: weekDates)
+            let persisted = weekDates.map { date in
+                (date: date, time: timesByDate[date] ?? 0)
+            }
+            let categories: [(category: Category, time: TimeInterval)]
+            if let firstDay = persisted.first?.date {
+                categories = database.getCategoryTotalsForWeek(startingFrom: firstDay)
+            } else {
+                categories = []
+            }
+            
+            DispatchQueue.main.async {
+                persistedWeeklyData = persisted
+                categoryTotals = categories
+                applyLiveSessionOverlay()
+            }
         }
+    }
+    
+    private func applyLiveSessionOverlay() {
+        weeklyData = Self.mergePersistedWeekData(
+            persistedWeeklyData,
+            with: appState.liveSessionSnapshot
+        )
+        
+        if let selected = selectedDay, selected >= weeklyData.count {
+            selectedDay = nil
+        }
+    }
+    
+    static func weekDatesThroughToday(referenceDate: Date = Date(), calendar: Calendar = .current) -> [Date] {
+        let today = calendar.startOfDay(for: referenceDate)
+        
+        var components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)
+        components.weekday = 2 // Monday
+        let startOfWeek = calendar.date(from: components) ?? today
+        let dayCount = max(calendar.dateComponents([.day], from: startOfWeek, to: today).day ?? 0, 0) + 1
+        
+        return (0..<dayCount).compactMap { dayOffset in
+            calendar.date(byAdding: .day, value: dayOffset, to: startOfWeek)
+        }
+    }
+    
+    static func mergePersistedWeekData(
+        _ persisted: [(date: Date, time: TimeInterval)],
+        with snapshot: AppState.LiveSessionSnapshot?,
+        calendar: Calendar = .current
+    ) -> [(date: Date, time: TimeInterval)] {
+        guard let snapshot, snapshot.activeDuration > 0 else {
+            return persisted
+        }
+        
+        var merged = persisted
+        let sessionDay = calendar.startOfDay(for: snapshot.startTime)
+        
+        if let index = merged.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: sessionDay) }) {
+            merged[index].time += snapshot.activeDuration
+        }
+        
+        return merged
     }
     
     private func weekRangeString() -> String {
@@ -396,7 +625,116 @@ struct WeeklyView: View {
     
     private func calculateConsistency() -> String {
         let activeDays = weeklyData.filter { $0.time > 0 }.count
-        return "\(activeDays)/7 days"
+        return "\(activeDays)/\(max(weeklyData.count, 1)) days"
+    }
+}
+
+private struct CompactMetricSegment: View {
+    let title: String
+    let value: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.12))
+                    .frame(width: 28, height: 28)
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(color)
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(title.uppercased())
+                    .font(.system(size: 9, weight: .black))
+                    .tracking(1)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+    }
+}
+
+private struct SectionToggleButton: View {
+    let title: String
+    let isOn: Bool
+    let color: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundColor(isOn ? color : Color(red: 0.42, green: 0.42, blue: 0.42))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(isOn ? color.opacity(0.12) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct CompactDayRow: View {
+    let date: Date
+    let formattedTime: String
+    let percentage: Double
+    let isToday: Bool
+    let color: Color
+    
+    private let secondaryText = Color(red: 0.4, green: 0.4, blue: 0.4)
+    
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(isToday ? "Today" : dayName())
+                .font(.system(size: 14, weight: isToday ? .bold : .semibold))
+                .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.1))
+                .frame(width: 74, alignment: .leading)
+            
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.black.opacity(0.03))
+                        .frame(height: 4)
+                    Capsule()
+                        .fill(isToday ? Color(hex: "#C75B39") : color)
+                        .frame(width: geo.size.width * CGFloat(percentage), height: 4)
+                }
+            }
+            .frame(height: 4)
+            
+            Text(formattedTime)
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundColor(isToday ? color : secondaryText)
+                .frame(width: 64, alignment: .trailing)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(isToday ? color.opacity(0.08) : Color.white.opacity(0.45))
+        )
+    }
+    
+    private func dayName() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE"
+        return formatter.string(from: date)
     }
 }
 
@@ -406,6 +744,7 @@ struct WeeklyView: View {
 struct DayRow: View {
     let date: Date
     let time: TimeInterval
+    let formattedTime: String
     let percentage: Double
     let isToday: Bool
     let color: Color
@@ -439,7 +778,7 @@ struct DayRow: View {
                     
                     Spacer()
                     
-                    Text(time.formatted())
+                    Text(formattedTime)
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(isToday ? color : Color(red: 0.1, green: 0.1, blue: 0.1))
                 }
