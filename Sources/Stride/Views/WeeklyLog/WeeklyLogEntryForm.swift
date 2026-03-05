@@ -26,6 +26,7 @@ struct WeeklyLogEntryForm: View {
     @State private var isAnimating = false
     @State private var showingColorPicker = false
     @State private var selectedCategoryColor: String
+    @State private var saveErrorMessage: String?
     
     private let backgroundColor = Color(hex: "#FAF8F4")
     private let cardBackground = Color.white
@@ -73,7 +74,7 @@ struct WeeklyLogEntryForm: View {
                 backgroundColor.ignoresSafeArea()
                 
                 ScrollView {
-                    VStack(spacing: 28) {
+                    VStack(spacing: 22) {
                         // MARK: 1. Easy Day Selector
                         daySelectorSection
                         
@@ -92,10 +93,10 @@ struct WeeklyLogEntryForm: View {
                         // MARK: 6. Notes
                         notesSection
                     }
-                    .padding(24)
+                    .padding(22)
                 }
             }
-            .navigationTitle(isEditing ? "Edit Entry" : "New Entry")
+            .navigationTitle(isEditing ? "Edit Session" : "Log Session")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.foregroundColor(secondaryText)
@@ -108,7 +109,19 @@ struct WeeklyLogEntryForm: View {
                 }
             }
         }
-        .frame(width: 500, height: 750)
+        .frame(width: 540, height: 760)
+        .alert("Unable to Save Entry", isPresented: Binding(
+            get: { saveErrorMessage != nil },
+            set: { isPresented in
+                if !isPresented { saveErrorMessage = nil }
+            }
+        )) {
+            Button("OK", role: .cancel) {
+                saveErrorMessage = nil
+            }
+        } message: {
+            Text(saveErrorMessage ?? "Unknown error")
+        }
     }
     
     // MARK: - Sections
@@ -117,10 +130,10 @@ struct WeeklyLogEntryForm: View {
      * Replaces the graphical date picker with high-tap-target day chips.
      */
     private var daySelectorSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("SELECT DAY").font(.system(size: 10, weight: .black)).foregroundColor(secondaryText).tracking(1.5)
             
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 ForEach(weekStart.weekInfo.days, id: \.self) { day in
                     let isSelected = Calendar.current.isDate(day, inSameDayAs: date)
                     let isToday = Calendar.current.isDateInToday(day)
@@ -128,18 +141,18 @@ struct WeeklyLogEntryForm: View {
                     Button(action: { date = day }) {
                         VStack(spacing: 4) {
                             Text(day.shortDayName.uppercased())
-                                .font(.system(size: 9, weight: .bold))
+                                .font(.system(size: 10, weight: .bold))
                             Text(day.dayOfMonth)
-                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .padding(.vertical, 11)
                         .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            RoundedRectangle(cornerRadius: 11, style: .continuous)
                                 .fill(isSelected ? accentColor : (isToday ? accentColor.opacity(0.1) : cardBackground))
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            RoundedRectangle(cornerRadius: 11, style: .continuous)
                                 .stroke(isSelected ? Color.clear : Color.black.opacity(0.05), lineWidth: 1)
                         )
                         .foregroundColor(isSelected ? .white : (isToday ? accentColor : textColor))
@@ -214,7 +227,7 @@ struct WeeklyLogEntryForm: View {
     private var taskSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("FOCUS TASK").font(.system(size: 10, weight: .black)).foregroundColor(secondaryText).tracking(1.5)
-            TextField("What did you achieve?", text: $task)
+            TextField("What did you focus on?", text: $task)
                 .textFieldStyle(.plain)
                 .font(.system(size: 15, weight: .medium))
                 .padding(14)
@@ -296,7 +309,7 @@ struct WeeklyLogEntryForm: View {
             Text("PROGRESS NOTES").font(.system(size: 10, weight: .black)).foregroundColor(secondaryText).tracking(1.5)
             TextEditor(text: $progressNote)
                 .font(.system(size: 14))
-                .frame(minHeight: 100)
+                .frame(minHeight: 120)
                 .scrollContentBackground(.hidden) // Removes default macOS TextEditor styling
                 .padding(12)
                 .background(RoundedRectangle(cornerRadius: 12).fill(cardBackground))
@@ -313,7 +326,15 @@ struct WeeklyLogEntryForm: View {
     }
     
     private func saveEntry() {
-        WeeklyLogDatabase.shared.setCategoryColor(for: category, color: selectedCategoryColor)
+        let colorResult = WeeklyLogDatabase.shared.setCategoryColor(for: category, color: selectedCategoryColor)
+        guard case .success = colorResult else {
+            if case .failure(let error) = colorResult {
+                saveErrorMessage = error.localizedDescription
+            } else {
+                saveErrorMessage = "Failed to save category color."
+            }
+            return
+        }
         
         let newEntry = WeeklyLogEntry(
             id: entry?.id ?? UUID(),
@@ -327,14 +348,20 @@ struct WeeklyLogEntryForm: View {
             createdAt: entry?.createdAt ?? Date()
         )
         
+        let saveResult: WeeklyLogDatabaseResult<Void>
         if isEditing {
-            WeeklyLogDatabase.shared.updateEntry(newEntry)
+            saveResult = WeeklyLogDatabase.shared.updateEntry(newEntry)
         } else {
-            WeeklyLogDatabase.shared.createEntry(newEntry)
+            saveResult = WeeklyLogDatabase.shared.createEntry(newEntry)
         }
         
-        onSave(newEntry)
-        dismiss()
+        switch saveResult {
+        case .success:
+            onSave(newEntry)
+            dismiss()
+        case .failure(let error):
+            saveErrorMessage = error.localizedDescription
+        }
     }
 }
 
