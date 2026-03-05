@@ -106,9 +106,6 @@ final class WeeklyLogDatabase: BaseDatabase {
         switch openDatabase() {
         case .success:
             _ = runMigrations(migrations)
-            if getAllEntries().isEmpty {
-                insertSampleData()
-            }
         case .failure(let error):
             DatabaseLogger.error.error("Failed to initialize WeeklyLogDatabase: \(error.localizedDescription)")
         }
@@ -124,20 +121,25 @@ final class WeeklyLogDatabase: BaseDatabase {
             var statement: OpaquePointer?
             
             guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
-                return .failure(.queryFailed(sql: sql, message: "Prepare failed"))
+                let message = String(cString: sqlite3_errmsg(db))
+                return .failure(.queryFailed(sql: sql, message: message))
             }
+            defer { sqlite3_finalize(statement) }
             
-            sqlite3_bind_text(statement, 1, (entry.id.uuidString as NSString).utf8String, -1, nil)
-            sqlite3_bind_double(statement, 2, entry.date.timeIntervalSince1970)
-            sqlite3_bind_text(statement, 3, (entry.category as NSString).utf8String, -1, nil)
-            sqlite3_bind_text(statement, 4, (entry.task as NSString).utf8String, -1, nil)
-            sqlite3_bind_double(statement, 5, entry.timeSpent)
-            sqlite3_bind_text(statement, 6, (entry.progressNote as NSString).utf8String, -1, nil)
-            sqlite3_bind_text(statement, 7, (entry.winNote as NSString).utf8String, -1, nil)
-            sqlite3_bind_int(statement, 8, entry.isWinOfDay ? 1 : 0)
-            sqlite3_bind_double(statement, 9, entry.createdAt.timeIntervalSince1970)
-            sqlite3_step(statement)
-            sqlite3_finalize(statement)
+            guard sqlite3_bind_text(statement, 1, (entry.id.uuidString as NSString).utf8String, -1, nil) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 1)) }
+            guard sqlite3_bind_double(statement, 2, entry.date.timeIntervalSince1970) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 2)) }
+            guard sqlite3_bind_text(statement, 3, (entry.category as NSString).utf8String, -1, nil) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 3)) }
+            guard sqlite3_bind_text(statement, 4, (entry.task as NSString).utf8String, -1, nil) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 4)) }
+            guard sqlite3_bind_double(statement, 5, entry.timeSpent) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 5)) }
+            guard sqlite3_bind_text(statement, 6, (entry.progressNote as NSString).utf8String, -1, nil) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 6)) }
+            guard sqlite3_bind_text(statement, 7, (entry.winNote as NSString).utf8String, -1, nil) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 7)) }
+            guard sqlite3_bind_int(statement, 8, entry.isWinOfDay ? 1 : 0) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 8)) }
+            guard sqlite3_bind_double(statement, 9, entry.createdAt.timeIntervalSince1970) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 9)) }
+            
+            guard sqlite3_step(statement) == SQLITE_DONE else {
+                let message = String(cString: sqlite3_errmsg(db))
+                return .failure(.executeFailed(sql: sql, message: message))
+            }
             
             unsafeEnsureCategoryColorExists(for: entry.category)
             return .success(())
@@ -152,19 +154,24 @@ final class WeeklyLogDatabase: BaseDatabase {
             var statement: OpaquePointer?
             
             guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
-                return .failure(.queryFailed(sql: sql, message: "Prepare failed"))
+                let message = String(cString: sqlite3_errmsg(db))
+                return .failure(.queryFailed(sql: sql, message: message))
             }
+            defer { sqlite3_finalize(statement) }
             
-            sqlite3_bind_double(statement, 1, entry.date.timeIntervalSince1970)
-            sqlite3_bind_text(statement, 2, (entry.category as NSString).utf8String, -1, nil)
-            sqlite3_bind_text(statement, 3, (entry.task as NSString).utf8String, -1, nil)
-            sqlite3_bind_double(statement, 4, entry.timeSpent)
-            sqlite3_bind_text(statement, 5, (entry.progressNote as NSString).utf8String, -1, nil)
-            sqlite3_bind_text(statement, 6, (entry.winNote as NSString).utf8String, -1, nil)
-            sqlite3_bind_int(statement, 7, entry.isWinOfDay ? 1 : 0)
-            sqlite3_bind_text(statement, 8, (entry.id.uuidString as NSString).utf8String, -1, nil)
-            sqlite3_step(statement)
-            sqlite3_finalize(statement)
+            guard sqlite3_bind_double(statement, 1, entry.date.timeIntervalSince1970) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 1)) }
+            guard sqlite3_bind_text(statement, 2, (entry.category as NSString).utf8String, -1, nil) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 2)) }
+            guard sqlite3_bind_text(statement, 3, (entry.task as NSString).utf8String, -1, nil) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 3)) }
+            guard sqlite3_bind_double(statement, 4, entry.timeSpent) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 4)) }
+            guard sqlite3_bind_text(statement, 5, (entry.progressNote as NSString).utf8String, -1, nil) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 5)) }
+            guard sqlite3_bind_text(statement, 6, (entry.winNote as NSString).utf8String, -1, nil) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 6)) }
+            guard sqlite3_bind_int(statement, 7, entry.isWinOfDay ? 1 : 0) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 7)) }
+            guard sqlite3_bind_text(statement, 8, (entry.id.uuidString as NSString).utf8String, -1, nil) == SQLITE_OK else { return .failure(.bindingFailed(parameter: 8)) }
+            
+            guard sqlite3_step(statement) == SQLITE_DONE else {
+                let message = String(cString: sqlite3_errmsg(db))
+                return .failure(.executeFailed(sql: sql, message: message))
+            }
             
             unsafeEnsureCategoryColorExists(for: entry.category)
             return .success(())
@@ -175,14 +182,21 @@ final class WeeklyLogDatabase: BaseDatabase {
         return dbQueue.sync {
             guard let db = db else { return .failure(.databaseNotInitialized) }
             
+            let sql = "DELETE FROM weekly_log_entries WHERE id = ?;"
             var statement: OpaquePointer?
-            guard sqlite3_prepare_v2(db, "DELETE FROM weekly_log_entries WHERE id = ?;", -1, &statement, nil) == SQLITE_OK else {
-                return .failure(.queryFailed(sql: "DELETE", message: "Prepare failed"))
+            guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+                let message = String(cString: sqlite3_errmsg(db))
+                return .failure(.queryFailed(sql: sql, message: message))
             }
+            defer { sqlite3_finalize(statement) }
             
-            sqlite3_bind_text(statement, 1, (entryId.uuidString as NSString).utf8String, -1, nil)
-            sqlite3_step(statement)
-            sqlite3_finalize(statement)
+            guard sqlite3_bind_text(statement, 1, (entryId.uuidString as NSString).utf8String, -1, nil) == SQLITE_OK else {
+                return .failure(.bindingFailed(parameter: 1))
+            }
+            guard sqlite3_step(statement) == SQLITE_DONE else {
+                let message = String(cString: sqlite3_errmsg(db))
+                return .failure(.executeFailed(sql: sql, message: message))
+            }
             
             return .success(())
         }
@@ -241,8 +255,9 @@ final class WeeklyLogDatabase: BaseDatabase {
     }
     
     func getEntriesForDate(_ date: Date) -> [WeeklyLogEntry] {
-        let start = Calendar.current.startOfDay(for: date).timeIntervalSince1970
-        let end = (Calendar.current.date(byAdding: .day, value: 1, to: date) ?? date).timeIntervalSince1970
+        let dayStart = Calendar.current.startOfDay(for: date)
+        let start = dayStart.timeIntervalSince1970
+        let end = (Calendar.current.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart).timeIntervalSince1970
         
         return dbQueue.sync {
             guard let db = db else { return [] }
@@ -286,21 +301,21 @@ final class WeeklyLogDatabase: BaseDatabase {
         return dbQueue.sync {
             guard let db = db else { return [] }
             
-            var categories: Set<String> = []
+            var categories: [String] = []
             var statement: OpaquePointer?
             
             guard sqlite3_prepare_v2(db, "SELECT DISTINCT category FROM weekly_log_entries ORDER BY category;", -1, &statement, nil) == SQLITE_OK else {
-                return Array(categories)
+                return categories
             }
             
             while sqlite3_step(statement) == SQLITE_ROW {
                 if let cString = sqlite3_column_text(statement, 0) {
-                    categories.insert(String(cString: cString))
+                    categories.append(String(cString: cString))
                 }
             }
             
             sqlite3_finalize(statement)
-            return Array(categories)
+            return categories
         }
     }
     
@@ -400,27 +415,4 @@ final class WeeklyLogDatabase: BaseDatabase {
         )
     }
     
-    private func insertSampleData() {
-        let calendar = Calendar.current
-        let lastMonday = Date().startOfWeek
-        let samples: [(day: Int, category: String, task: String, time: Double, note: String, isWin: Bool)] = [
-            (0, "Reading", "Deep Work", 1.0, "Finished Chapter 3", true),
-            (1, "Learning", "Swift concurrency", 1.5, "Completed tutorial", true),
-            (5, "Personal", "Built Stride features", 1.5, "Updated Weekly Log", true)
-        ]
-        
-        for sample in samples {
-            if let date = calendar.date(byAdding: .day, value: sample.day, to: lastMonday) {
-                let entry = WeeklyLogEntry(
-                    date: date,
-                    category: sample.category,
-                    task: sample.task,
-                    timeSpent: sample.time,
-                    progressNote: sample.note,
-                    isWinOfDay: sample.isWin
-                )
-                _ = createEntry(entry)
-            }
-        }
-    }
 }
