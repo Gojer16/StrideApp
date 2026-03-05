@@ -8,7 +8,7 @@ import SwiftUI
  * - Color-coded blocks by category
  * - Block height proportional to time spent
  * - Gold stars for wins
- * - Tap to edit, swipe to delete
+ * - Tap to edit, context menu to delete
  *
  * Aesthetic: Warm Paper/Editorial Light
  */
@@ -130,12 +130,12 @@ private struct DayColumn: View {
                 if entries.isEmpty {
                     // Empty placeholder
                     Rectangle()
-                        .fill(Color.black.opacity(0.02))
+                        .fill(Color.black.opacity(0.05))
                         .frame(height: 60)
                         .overlay(
-                            Text("-")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(Color.black.opacity(0.15))
+                            Text("No log")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(Color.black.opacity(0.3))
                         )
                 } else {
                     ForEach(entries) { entry in
