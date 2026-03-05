@@ -22,6 +22,99 @@ struct BrowserDomain: Identifiable {
     var totalTime: TimeInterval {
         activeTime + passiveTime
     }
+    
+    /// Friendly display name for UI (e.g., "YouTube" instead of "youtube.com")
+    var displayName: String {
+        let domainToName: [String: String] = [
+            "youtube.com": "YouTube",
+            "github.com": "GitHub",
+            "stackoverflow.com": "Stack Overflow",
+            "reddit.com": "Reddit",
+            "twitter.com": "Twitter",
+            "x.com": "X",
+            "facebook.com": "Facebook",
+            "linkedin.com": "LinkedIn",
+            "gmail.com": "Gmail",
+            "docs.google.com": "Google Docs",
+            "drive.google.com": "Google Drive",
+            "sheets.google.com": "Google Sheets",
+            "notion.so": "Notion",
+            "figma.com": "Figma",
+            "slack.com": "Slack",
+            "discord.com": "Discord",
+            "zoom.us": "Zoom",
+            "netflix.com": "Netflix",
+            "spotify.com": "Spotify",
+            "amazon.com": "Amazon",
+            "google.com": "Google"
+        ]
+        
+        let key = domain.lowercased()
+        if let name = domainToName[key] {
+            return name
+        }
+        
+        // Fallback: capitalize the domain name (strip TLD)
+        let parts = domain.split(separator: ".")
+        if let first = parts.first {
+            return first.capitalized
+        }
+        return domain
+    }
+    
+    /// Category color for visual grouping (matches app category colors)
+    var categoryColor: String {
+        let domainToCategory: [String: String] = [
+            // Entertainment (Purple)
+            "youtube.com": "#7A6B8A",
+            "netflix.com": "#7A6B8A",
+            "spotify.com": "#7A6B8A",
+            "twitch.tv": "#7A6B8A",
+            
+            // Social (Slate Blue)
+            "twitter.com": "#5B7C8C",
+            "x.com": "#5B7C8C",
+            "facebook.com": "#5B7C8C",
+            "instagram.com": "#5B7C8C",
+            "reddit.com": "#5B7C8C",
+            "linkedin.com": "#5B7C8C",
+            "tiktok.com": "#5B7C8C",
+            
+            // Development (Brown/Orange)
+            "github.com": "#B8834C",
+            "stackoverflow.com": "#B8834C",
+            "gitlab.com": "#B8834C",
+            "bitbucket.org": "#B8834C",
+            "codepen.io": "#B8834C",
+            
+            // Productivity (Moss Green)
+            "notion.so": "#4A7C59",
+            "figma.com": "#4A7C59",
+            "linear.app": "#4A7C59",
+            "asana.com": "#4A7C59",
+            "trello.com": "#4A7C59",
+            
+            // Communication (Teal)
+            "slack.com": "#5A8C7C",
+            "discord.com": "#5A8C7C",
+            "zoom.us": "#5A8C7C",
+            "teams.microsoft.com": "#5A8C7C",
+            
+            // Work (Terracotta)
+            "docs.google.com": "#C75B39",
+            "sheets.google.com": "#C75B39",
+            "drive.google.com": "#C75B39",
+            "gmail.com": "#C75B39",
+            "amazon.com": "#C75B39",
+            
+            // Search/Utilities (Gray)
+            "google.com": "#7A8C8C",
+            "duckduckgo.com": "#7A8C8C"
+        ]
+        
+        let key = domain.lowercased()
+        return domainToCategory[key] ?? "#6B7B7B" // Default to Uncategorized gray
+    }
 }
 
 // MARK: - Today Stats Model
@@ -44,7 +137,8 @@ struct TodayStats {
     let browserDomains: [BrowserDomain]
     let totalActiveTime: TimeInterval
     let totalPassiveTime: TimeInterval
-    let totalVisits: Int
+    let totalTrackedApps: Int
+    let focusedAppName: String?
     let categoryBreakdown: [(category: Category, time: TimeInterval)]
     
     static let empty = TodayStats(
@@ -52,7 +146,8 @@ struct TodayStats {
         browserDomains: [],
         totalActiveTime: 0,
         totalPassiveTime: 0,
-        totalVisits: 0,
+        totalTrackedApps: 0,
+        focusedAppName: nil,
         categoryBreakdown: []
     )
 }
@@ -307,9 +402,20 @@ struct UsageSession: Codable, Identifiable {
  - `windows`: Individual windows within apps
  - `sessions`: Time tracking sessions
  */
-class UsageDatabase {
+class UsageDatabase: ObservableObject {
     /// Shared singleton instance
     static let shared = UsageDatabase()
+    
+    private static func defaultDBPath() -> String {
+        let urls = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+        let appSupport = urls.first!.appendingPathComponent("Stride")
+        try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
+        return appSupport.appendingPathComponent("usage.db").path
+    }
+    
+    static func makeTestingDatabase(atPath path: String) -> UsageDatabase {
+        UsageDatabase(dbPath: path)
+    }
     
     /// SQLite database connection
     private var db: OpaquePointer?
@@ -322,6 +428,8 @@ class UsageDatabase {
      prioritizes energy efficiency over speed.
      */
     private let dbQueue = DispatchQueue(label: "com.stride.database", qos: .utility)
+
+    @Published private(set) var lastUpdate = Date()
     
     // MARK: - Cache
     
@@ -336,16 +444,83 @@ class UsageDatabase {
         cachedTodayStats = nil
         cacheLock.unlock()
     }
+
+    private func notifyUpdate() {
+        DispatchQueue.main.async { [weak self] in
+            self?.lastUpdate = Date()
+        }
+    }
+    
+    func waitForPendingWrites() {
+        dbQueue.sync {}
+    }
+    
+    func seedSessionForTesting(
+        appName: String,
+        windowTitle: String,
+        startTime: Date,
+        duration: TimeInterval,
+        passiveDuration: TimeInterval = 0
+    ) -> (app: AppUsage, window: WindowUsage, sessionId: UUID)? {
+        guard let app = getOrCreateApplication(name: appName),
+              let window = getOrCreateWindow(appId: app.id.uuidString, title: windowTitle) else {
+            return nil
+        }
+        
+        let sessionId = UUID()
+        let endTime = startTime.addingTimeInterval(duration)
+        let activeDuration = max(0, duration)
+        let safePassiveDuration = max(0, min(passiveDuration, activeDuration))
+        
+        let insertSessionSQL = """
+            INSERT INTO sessions (id, window_id, start_time, end_time, duration, passive_duration)
+            VALUES (?, ?, ?, ?, ?, ?);
+        """
+        let updateWindowSQL = "UPDATE windows SET total_time_spent = total_time_spent + ?, last_seen = ? WHERE id = ?;"
+        let updateAppSQL = "UPDATE applications SET total_time_spent = total_time_spent + ?, last_seen = ? WHERE id = ?;"
+        
+        dbQueue.sync {
+            var insertStatement: OpaquePointer?
+            if sqlite3_prepare_v2(db, insertSessionSQL, -1, &insertStatement, nil) == SQLITE_OK {
+                sqlite3_bind_text(insertStatement, 1, (sessionId.uuidString as NSString).utf8String, -1, nil)
+                sqlite3_bind_text(insertStatement, 2, (window.id.uuidString as NSString).utf8String, -1, nil)
+                sqlite3_bind_double(insertStatement, 3, startTime.timeIntervalSince1970)
+                sqlite3_bind_double(insertStatement, 4, endTime.timeIntervalSince1970)
+                sqlite3_bind_double(insertStatement, 5, activeDuration)
+                sqlite3_bind_double(insertStatement, 6, safePassiveDuration)
+                sqlite3_step(insertStatement)
+            }
+            sqlite3_finalize(insertStatement)
+            
+            var updateWindowStatement: OpaquePointer?
+            if sqlite3_prepare_v2(db, updateWindowSQL, -1, &updateWindowStatement, nil) == SQLITE_OK {
+                sqlite3_bind_double(updateWindowStatement, 1, activeDuration)
+                sqlite3_bind_double(updateWindowStatement, 2, endTime.timeIntervalSince1970)
+                sqlite3_bind_text(updateWindowStatement, 3, (window.id.uuidString as NSString).utf8String, -1, nil)
+                sqlite3_step(updateWindowStatement)
+            }
+            sqlite3_finalize(updateWindowStatement)
+            
+            var updateAppStatement: OpaquePointer?
+            if sqlite3_prepare_v2(db, updateAppSQL, -1, &updateAppStatement, nil) == SQLITE_OK {
+                sqlite3_bind_double(updateAppStatement, 1, activeDuration)
+                sqlite3_bind_double(updateAppStatement, 2, endTime.timeIntervalSince1970)
+                sqlite3_bind_text(updateAppStatement, 3, (app.id.uuidString as NSString).utf8String, -1, nil)
+                sqlite3_step(updateAppStatement)
+            }
+            sqlite3_finalize(updateAppStatement)
+        }
+        
+        invalidateTodayStatsCache()
+        notifyUpdate()
+        return (app, window, sessionId)
+    }
     
     /// Path to the SQLite database file in Application Support
-    private let dbPath: String = {
-        let urls = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        let appSupport = urls.first!.appendingPathComponent("Stride")
-        try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
-        return appSupport.appendingPathComponent("usage.db").path
-    }()
+    private let dbPath: String
     
-    private init() {
+    private init(dbPath: String? = nil) {
+        self.dbPath = dbPath ?? Self.defaultDBPath()
         openDatabase()
         if db != nil {
             createTables()
@@ -567,6 +742,7 @@ class UsageDatabase {
             sqlite3_step(statement)
         }
         sqlite3_finalize(statement)
+        notifyUpdate()
     }
     
     func updateCategory(_ category: Category) {
@@ -587,6 +763,7 @@ class UsageDatabase {
             sqlite3_step(statement)
         }
         sqlite3_finalize(statement)
+        notifyUpdate()
     }
     
     func deleteCategory(id: String) {
@@ -606,6 +783,7 @@ class UsageDatabase {
             sqlite3_step(statement)
         }
         sqlite3_finalize(statement)
+        notifyUpdate()
     }
     
     func getAllCategories() -> [Category] {
@@ -782,6 +960,7 @@ class UsageDatabase {
             }
             sqlite3_finalize(statement)
         }
+        notifyUpdate()
     }
     
     func getApplication(name: String) -> AppUsage? {
@@ -1121,6 +1300,7 @@ class UsageDatabase {
             
             // Invalidate cache after session ends
             self.invalidateTodayStatsCache()
+            self.notifyUpdate()
         }
     }
     
@@ -1475,14 +1655,57 @@ class UsageDatabase {
         }
     }
     
+    /// Returns aggregated times for a set of day buckets using a single ranged query.
+    func getTimes(for dates: [Date]) -> [Date: TimeInterval] {
+        guard db != nil, !dates.isEmpty else { return [:] }
+        
+        let calendar = Calendar.current
+        let normalizedDates = Array(Set(dates.map { calendar.startOfDay(for: $0) })).sorted()
+        
+        guard let first = normalizedDates.first,
+              let last = normalizedDates.last,
+              let endExclusive = calendar.date(byAdding: .day, value: 1, to: last) else {
+            return [:]
+        }
+        
+        let sql = """
+            SELECT start_time, duration
+            FROM sessions
+            WHERE start_time >= ? AND start_time < ?;
+        """
+        
+        return dbQueue.sync {
+            var results: [Date: TimeInterval] = Dictionary(
+                uniqueKeysWithValues: normalizedDates.map { ($0, 0) }
+            )
+            let validDates = Set(normalizedDates)
+            var statement: OpaquePointer?
+            
+            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+                sqlite3_bind_double(statement, 1, first.timeIntervalSince1970)
+                sqlite3_bind_double(statement, 2, endExclusive.timeIntervalSince1970)
+                
+                while sqlite3_step(statement) == SQLITE_ROW {
+                    let startTime = sqlite3_column_double(statement, 0)
+                    let duration = sqlite3_column_double(statement, 1)
+                    let day = calendar.startOfDay(for: Date(timeIntervalSince1970: startTime))
+                    
+                    if validDates.contains(day) {
+                        results[day, default: 0] += duration
+                    }
+                }
+            }
+            sqlite3_finalize(statement)
+            return results
+        }
+    }
+    
     func getCategoryTotalsForWeek(startingFrom weekStart: Date) -> [(category: Category, time: TimeInterval)] {
         guard db != nil else { return [] }
         
         let calendar = Calendar.current
         let startOfWeek = calendar.startOfDay(for: weekStart)
         let endOfWeek = calendar.date(byAdding: .day, value: 7, to: startOfWeek)!
-        
-        print("📊 Category query: start=\(startOfWeek), end=\(endOfWeek)")
         
         let sql = """
             SELECT COALESCE(a.category_id, '\(Category.uncategorizedId.lowercased())') as category_id, SUM(s.duration) as total_time
@@ -1506,24 +1729,18 @@ class UsageDatabase {
                     if let categoryIdCString = sqlite3_column_text(statement, 0) {
                         let categoryId = String(cString: categoryIdCString).lowercased()
                         let totalTime = sqlite3_column_double(statement, 1)
-                        
-                        print("📊 Found category_id=\(categoryId), time=\(totalTime)")
-                        
+                                                
                         if let category = unsafeGetCategory(byId: categoryId) {
                             results.append((category, totalTime))
                         } else {
-                            print("📊 Category not found for id=\(categoryId), using uncategorized")
                             if let uncategorized = unsafeGetCategory(byId: Category.uncategorizedId) {
                                 results.append((uncategorized, totalTime))
                             }
                         }
                     }
                 }
-            } else {
-                print("📊 SQL prepare failed")
             }
             sqlite3_finalize(statement)
-            print("📊 Total results: \(results.count)")
             return results
         }
     }
