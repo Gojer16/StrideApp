@@ -23,10 +23,12 @@ struct StrideApp: App {
         .defaultSize(width: 900, height: 650)
         .windowResizability(.contentSize)
         
-        MenuBarExtra("Stride", systemImage: "eye") {
+        MenuBarExtra {
             MenuBarView()
-                .frame(width: 280, height: 180)
+                .frame(width: 280, height: 220)
                 .environmentObject(appState)
+        } label: {
+            Label("Stride", systemImage: "eye")
         }
     }
 }
@@ -64,6 +66,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
  * 4. **History**: Maintains a list of recent applications for contextual awareness.
  */
 class AppState: ObservableObject {
+    struct LiveSessionSnapshot: Sendable {
+        let appName: String
+        let windowTitle: String
+        let startTime: Date
+        let activeDuration: TimeInterval
+        let passiveDuration: TimeInterval
+    }
     
     // MARK: - Singleton
     
@@ -116,11 +125,11 @@ class AppState: ObservableObject {
         // Set up the app monitor to notify us on changes
         self.appMonitor.delegate = self
         
-        // Start the passive tracking loop
-        self.appMonitor.startMonitoring()
-        
         // Perform initial data fetch for the Live tab
         refreshRecentApps()
+        
+        // Start monitoring immediately
+        appMonitor.startMonitoring()
         
         // Set the initial ambient color based on the current foreground app
         if let appUsage = UsageDatabase.shared.getApplication(name: activeAppName) {
@@ -163,6 +172,21 @@ class AppState: ObservableObject {
         return apps.filter { $0.lastSeen >= startOfDay }.reduce(0) { $0 + $1.totalTimeSpent }
     }
     
+    var liveSessionSnapshot: LiveSessionSnapshot? {
+        guard let appName = sessionManager.currentAppName,
+              let activeDuration = sessionManager.currentActiveTime else {
+            return nil
+        }
+        
+        return LiveSessionSnapshot(
+            appName: appName,
+            windowTitle: sessionManager.currentWindowTitle ?? activeWindowTitle,
+            startTime: sessionManager.currentSessionStartTime ?? Date(),
+            activeDuration: max(0, activeDuration),
+            passiveDuration: max(0, sessionManager.currentPassiveTime)
+        )
+    }
+    
     // MARK: - Session Management
     
     /**
@@ -185,6 +209,7 @@ class AppState: ObservableObject {
         
         // Record the new session
         sessionManager.startNewSession(appName: appName, windowTitle: sessionTitle)
+        ActivityLogger.shared.log(appName: appName, windowTitle: sessionTitle)
         
         // Update Published state for the UI
         activeAppName = appName
