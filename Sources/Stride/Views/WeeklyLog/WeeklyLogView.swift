@@ -27,6 +27,7 @@ struct WeeklyLogView: View {
     
     var weekInfo: WeekInfo { currentWeekStart.weekInfo }
     var weeklyTotal: Double { entries.reduce(0) { $0 + $1.timeSpent } }
+    var weeklyTotalUnitLabel: String { abs(weeklyTotal - 1.0) < 0.001 ? "hour" : "hours" }
     var weeklyMinutes: Int { entries.reduce(0) { $0 + $1.timeInMinutes } }
     var winsCount: Int { entries.filter { $0.isWinOfDay }.count }
     
@@ -143,7 +144,7 @@ struct WeeklyLogView: View {
         HStack(alignment: .center, spacing: 20) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Weekly Log").font(.system(size: 28, weight: .bold)).foregroundColor(textColor)
-                Text("Track your focus sessions and wins").font(.system(size: 13)).foregroundColor(secondaryText)
+                Text("Your focus week across Forest, apps, and timer.").font(.system(size: 14, weight: .medium)).foregroundColor(Color(hex: "#525252"))
             }
             Spacer()
             HStack(spacing: 12) {
@@ -170,57 +171,80 @@ struct WeeklyLogView: View {
     }
     
     private var summaryBar: some View {
-        HStack(spacing: 0) {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle().fill(accentColor.opacity(0.15)).frame(width: 44, height: 44)
-                    Image(systemName: "clock").font(.system(size: 20, weight: .medium)).foregroundColor(accentColor)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Weekly Total").font(.system(size: 11, weight: .medium)).foregroundColor(secondaryText)
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(String(format: "%.2f", weeklyTotal)).font(.system(size: 24, weight: .bold, design: .rounded)).foregroundColor(textColor)
-                        Text("pomodoros").font(.system(size: 13, weight: .medium)).foregroundColor(secondaryText)
-                    }
-                    Text("(\(weeklyMinutes) min)").font(.system(size: 12, weight: .medium)).foregroundColor(secondaryText.opacity(0.8))
-                }
-            }
-            Spacer()
-            Divider().frame(height: 50).background(Color.black.opacity(0.1))
-            Spacer()
-            HStack(spacing: 16) {
-                ForEach(weekInfo.days, id: \.self) { day in
-                    let total = (entries.filter { Calendar.current.isDate($0.date, inSameDayAs: day) }.reduce(0) { $0 + $1.timeSpent })
-                    VStack(spacing: 6) {
-                        Text(day.shortDayName).font(.system(size: 11, weight: .semibold)).foregroundColor(secondaryText)
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous).fill(total > 0 ? accentColor.opacity(0.15) : Color.black.opacity(0.04)).frame(width: 44, height: 44)
-                            Text(total > 0 ? String(format: "%.1f", total) : "-").font(.system(size: 13, weight: .bold)).foregroundColor(total > 0 ? accentColor : secondaryText.opacity(0.4))
-                        }
-                        Text(day.dayOfMonth).font(.system(size: 10, weight: .medium)).foregroundColor(secondaryText.opacity(0.7))
-                    }
-                }
-            }
-            Spacer()
-            Divider().frame(height: 50).background(Color.black.opacity(0.1))
-            Spacer()
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle().fill(winColor.opacity(0.2)).frame(width: 44, height: 44)
-                    Image(systemName: "star.fill").font(.system(size: 20, weight: .medium)).foregroundColor(winColor.opacity(0.9))
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Wins").font(.system(size: 11, weight: .medium)).foregroundColor(secondaryText)
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text("\(winsCount)").font(.system(size: 24, weight: .bold, design: .rounded)).foregroundColor(textColor)
-                        Text(winsCount == 1 ? "win" : "wins").font(.system(size: 13, weight: .medium)).foregroundColor(secondaryText)
-                    }
-                }
-            }
-            Spacer()
+        HStack(spacing: 16) {
+            summaryTotalMetric
+            Divider().frame(height: 54).background(Color.black.opacity(0.14))
+            summaryWeekCells
+            Divider().frame(height: 54).background(Color.black.opacity(0.14))
+            summaryWinsMetric
         }
-        .padding(.horizontal, 24).padding(.vertical, 20)
+        .padding(.horizontal, 24).padding(.vertical, 18)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(cardBackground).shadow(color: Color.black.opacity(0.04), radius: 12, x: 0, y: 3))
+    }
+
+    private var summaryTotalMetric: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(accentColor.opacity(0.15)).frame(width: 44, height: 44)
+                Image(systemName: "clock").font(.system(size: 20, weight: .medium)).foregroundColor(accentColor)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Weekly Total").font(.system(size: 12, weight: .semibold)).foregroundColor(secondaryText)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(String(format: "%.2f", weeklyTotal)).font(.system(size: 32, weight: .bold, design: .rounded)).foregroundColor(textColor)
+                    Text(weeklyTotalUnitLabel).font(.system(size: 14, weight: .semibold)).foregroundColor(secondaryText)
+                }
+                Text("(\(weeklyMinutes) min)").font(.system(size: 12, weight: .medium)).foregroundColor(secondaryText.opacity(0.8))
+            }
+        }
+        .frame(minWidth: 220, alignment: .leading)
+    }
+
+    private var summaryWeekCells: some View {
+        HStack(spacing: 8) {
+            ForEach(weekInfo.days, id: \.self) { day in
+                summaryWeekCell(for: day)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func summaryWeekCell(for day: Date) -> some View {
+        let total = dayTotal(for: day)
+        return VStack(spacing: 6) {
+            Text(day.shortDayName).font(.system(size: 11, weight: .semibold)).foregroundColor(secondaryText)
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(total > 0 ? accentColor.opacity(0.15) : Color.black.opacity(0.06))
+                    .frame(maxWidth: .infinity, minHeight: 48, maxHeight: 48)
+                Text(total > 0 ? String(format: "%.1f", total) : "No log")
+                    .font(.system(size: total > 0 ? 14 : 9, weight: .bold))
+                    .foregroundColor(total > 0 ? accentColor : secondaryText.opacity(0.55))
+            }
+            Text(day.dayOfMonth).font(.system(size: 10, weight: .semibold)).foregroundColor(secondaryText.opacity(0.75))
+        }
+        .frame(minWidth: 0, maxWidth: .infinity)
+    }
+
+    private var summaryWinsMetric: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(winColor.opacity(0.2)).frame(width: 44, height: 44)
+                Image(systemName: "star.fill").font(.system(size: 20, weight: .medium)).foregroundColor(winColor.opacity(0.9))
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Wins").font(.system(size: 12, weight: .semibold)).foregroundColor(secondaryText)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("\(winsCount)").font(.system(size: 28, weight: .bold, design: .rounded)).foregroundColor(textColor)
+                    Text(winsCount == 1 ? "win" : "wins").font(.system(size: 13, weight: .medium)).foregroundColor(secondaryText)
+                }
+            }
+        }
+        .frame(minWidth: 120, alignment: .leading)
+    }
+
+    private func dayTotal(for day: Date) -> Double {
+        entries.filter { Calendar.current.isDate($0.date, inSameDayAs: day) }.reduce(0) { $0 + $1.timeSpent }
     }
     
     private var viewToggle: some View {
@@ -230,17 +254,17 @@ struct WeeklyLogView: View {
                     Image(systemName: "calendar").font(.system(size: 14, weight: .medium))
                     Text("Calendar").font(.system(size: 13, weight: .semibold))
                 }
-                .padding(.horizontal, 16).padding(.vertical, 8).background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(viewMode == .calendar ? accentColor : Color.clear)).contentShape(Rectangle()).foregroundColor(viewMode == .calendar ? .white : textColor)
+                .padding(.horizontal, 16).padding(.vertical, 8).background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(viewMode == .calendar ? accentColor : Color.clear)).contentShape(Rectangle()).foregroundColor(viewMode == .calendar ? .white : secondaryText.opacity(0.85))
             }.buttonStyle(.plain)
             Button(action: { withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { viewMode = .list } }) {
                 HStack(spacing: 6) {
                     Image(systemName: "list.bullet").font(.system(size: 14, weight: .medium))
                     Text("List").font(.system(size: 13, weight: .semibold))
                 }
-                .padding(.horizontal, 16).padding(.vertical, 8).background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(viewMode == .list ? accentColor : Color.clear)).contentShape(Rectangle()).foregroundColor(viewMode == .list ? .white : textColor)
+                .padding(.horizontal, 16).padding(.vertical, 8).background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(viewMode == .list ? accentColor : Color.clear)).contentShape(Rectangle()).foregroundColor(viewMode == .list ? .white : secondaryText.opacity(0.85))
             }.buttonStyle(.plain)
         }
-        .padding(4).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.black.opacity(0.04)))
+        .padding(4).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.black.opacity(0.05)))
     }
     
     private var mainContent: some View {
@@ -259,24 +283,24 @@ struct WeeklyLogView: View {
     }
     
     private var emptyStateView: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        VStack(spacing: 20) {
+            Spacer(minLength: 20)
             ZStack {
                 Circle().fill(RadialGradient(colors: [accentColor.opacity(0.1), Color.clear], center: .center, startRadius: 0, endRadius: 80)).frame(width: 160, height: 160)
                 Image(systemName: "clock.badge.checkmark").font(.system(size: 48, weight: .light)).foregroundColor(accentColor.opacity(0.7))
             }
             VStack(spacing: 8) {
-                Text("No Entries This Week").font(.system(size: 20, weight: .semibold)).foregroundColor(textColor)
-                Text("Start tracking your pomodoro sessions").font(.system(size: 14)).foregroundColor(secondaryText)
+                Text("No sessions logged this week yet.").font(.system(size: 20, weight: .semibold)).foregroundColor(textColor)
+                Text("Start one session to build your weekly rhythm.").font(.system(size: 14, weight: .medium)).foregroundColor(secondaryText)
             }
             Button(action: { showingAddEntry = true }) {
                 HStack(spacing: 8) {
                     Image(systemName: "plus").font(.system(size: 12, weight: .semibold))
-                    Text("Add First Entry").font(.system(size: 14, weight: .semibold))
+                    Text("Log First Session").font(.system(size: 14, weight: .semibold))
                 }
                 .padding(.horizontal, 24).padding(.vertical, 12).background(Capsule().strokeBorder(accentColor, lineWidth: 1.5)).foregroundColor(accentColor)
             }.buttonStyle(.plain).padding(.top, 8)
-            Spacer()
+            Spacer(minLength: 180)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(cardBackground).shadow(color: Color.black.opacity(0.04), radius: 12, x: 0, y: 3))
