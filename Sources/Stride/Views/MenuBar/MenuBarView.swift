@@ -1,57 +1,80 @@
 import SwiftUI
+import AppKit
 
 /**
  Compact view displayed in the macOS menu bar.
- 
- Shows current app name, elapsed session time, and quick actions
- to open the main window or quit the app.
+
+ Adds quick controls to enable/disable tracking, open logs, open settings,
+ and quit the app.
  */
 struct MenuBarView: View {
     @EnvironmentObject private var appState: AppState
-    
+
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Image(systemName: "eye.fill")
-                    .foregroundColor(.blue)
-                Text("Stride")
-                    .fontWeight(.semibold)
-                Spacer()
-            }
-            .padding()
-            .background(Color.blue.opacity(0.1))
-            
-            VStack(spacing: 12) {
+            header
+
+            VStack(spacing: 10) {
                 Text(appState.activeAppName)
                     .font(.system(size: 15, weight: .semibold))
-                
+
                 Text(appState.formattedTime)
                     .font(.system(size: 32, weight: .light, design: .rounded))
                     .monospacedDigit()
             }
             .padding()
-            
+
             Divider()
-            
+
             VStack(spacing: 0) {
-                Button("Open Stride") {
-                    NSApp.activate(ignoringOtherApps: true)
+                Button("Open Logs Folder") {
+                    openLogsFolder()
                 }
                 .buttonStyle(MenuBarButtonStyle())
-                
+
+                Button("Open Settings") {
+                    openSettings()
+                }
+                .buttonStyle(MenuBarButtonStyle())
+
+                Divider()
+
                 Button("Quit") {
                     NSApplication.shared.terminate(nil)
                 }
                 .buttonStyle(MenuBarButtonStyle())
             }
         }
-        .frame(width: 220)
+        .frame(width: 260)
+    }
+
+    private var header: some View {
+        HStack {
+            Image(systemName: "eye.fill")
+                .foregroundColor(.blue)
+            Text("Stride")
+                .fontWeight(.semibold)
+            Spacer()
+        }
+        .padding()
+        .background(Color.blue.opacity(0.1))
+    }
+
+    private func openLogsFolder() {
+        guard let url = ActivityLogger.applicationSupportStrideFolderURL() else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    private func openSettings() {
+        NSApp.activate(ignoringOtherApps: true)
+        // Minimal: just bring the main window forward; user can click “Settings” in the sidebar.
+        NSApp.windows.first?.makeKeyAndOrderFront(nil)
     }
 }
 
 /**
  Custom button style for menu bar buttons.
- 
+
  Provides consistent styling with hover effects for menu bar actions.
  */
 struct MenuBarButtonStyle: ButtonStyle {

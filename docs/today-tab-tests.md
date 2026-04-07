@@ -13,7 +13,7 @@ The test suite validates all components of the Today tab:
 
 ## Test Results
 
-**27 tests, 100% passing** ✅
+**34 tests, 100% passing** ✅
 
 ### Test Categories
 
@@ -50,11 +50,13 @@ The test suite validates all components of the Today tab:
 - ✅ Category initialization
 - ✅ Default categories exist
 
-#### Integration Tests (3 tests)
+#### Integration Tests (5 tests)
 - ✅ Complete TodayStats structure
 - ✅ Browser domain aggregation logic
 - ✅ Hourly usage array structure
 - ✅ Active vs passive time separation
+- ✅ Today stats persist completed sessions and invalidate cache
+- ✅ Today browser domains aggregate persisted browser sessions
 
 #### Performance Tests (2 tests)
 - ✅ TimeInterval formatting performance (<1ms)
@@ -65,7 +67,8 @@ The test suite validates all components of the Today tab:
 ```
 Tests/
 └── StrideTests/
-    └── TodayTabTests.swift  (Single comprehensive test file)
+    ├── TodayTabTests.swift
+    └── TodayTabIntegrationTests.swift
 ```
 
 ## Running Tests
@@ -107,13 +110,15 @@ swift test --filter TodayTabTests
 - Category management (defaults, initialization)
 - Data aggregation (browser domains, hourly usage)
 - Active/passive time separation
+- Database queries (`getTodayStats`, `getTodayBrowserDomains`, `getHourlyUsage`)
+- Session tracking and persistence through `SessionManager`
+- Cache invalidation after persisted session updates
 - Performance characteristics
 
-**⚠️ Not Covered (Requires Database):**
-- Database queries (getTodayStats, getHourlyUsage)
-- Session tracking and persistence
-- Cache effectiveness
-- Real-world data scenarios
+**⚠️ Still Not Covered:**
+- Full Today view rendering with live in-flight overlay
+- UI-level refresh behavior while the tab is onscreen
+- Very large real-world datasets and long-running sessions
 
 ## Performance Benchmarks
 
@@ -160,12 +165,10 @@ func browserDomainAggregation() {
 
 ## Future Enhancements
 
-### Database Integration Tests
-Would require:
-- Temporary test database creation
-- Mock data insertion
-- Query validation
-- Cleanup after tests
+### Next Integration Targets
+- Live session overlay math while a session is still in progress
+- Logical-day boundary scenarios around custom day start hours
+- Browser-heavy mixed days with both domain activity and native apps
 
 ### UI Tests
 Would require:
@@ -192,7 +195,7 @@ Tests run automatically on:
 ## Maintenance
 
 ### Adding New Tests
-1. Add test function to `TodayTabTests.swift`
+1. Add test function to `TodayTabTests.swift` or `TodayTabIntegrationTests.swift`
 2. Use `@Test` attribute
 3. Use `#expect` for assertions
 4. Run `swift test` to verify

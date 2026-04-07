@@ -99,24 +99,65 @@ struct DomainParser {
         
         cleanTitle = cleanTitle.trimmingCharacters(in: .whitespaces)
         
-        // Try to extract URL from title
-        if let domain = extractDomainFromURL(cleanTitle) {
-            return domain
-        }
-        
-        // Check for common site names in title
+        // Check for common site names FIRST (before URL extraction to ensure consistent domains)
         for (siteName, domain) in commonSites {
             if lowercased.contains(siteName) {
                 return domain
             }
         }
         
+        // Try to extract URL from title
+        if let domain = extractDomainFromURL(cleanTitle) {
+            // Normalize domain if it's a known site (e.g., "youtube" → "youtube.com")
+            let normalizedDomain = normalizeDomain(domain)
+            return normalizedDomain
+        }
+        
         // Try to find domain-like patterns (e.g., "word.com")
         if let domain = extractDomainPattern(from: cleanTitle) {
-            return domain
+            // Normalize domain if it's a known site
+            let normalizedDomain = normalizeDomain(domain)
+            return normalizedDomain
         }
         
         return nil
+    }
+    
+    /**
+     * Normalizes a domain to its canonical form.
+     * 
+     * Ensures known sites are always returned with their proper TLD.
+     * For example, "youtube" → "youtube.com", "github" → "github.com"
+     */
+    private static func normalizeDomain(_ domain: String) -> String {
+        let lowercasedDomain = domain.lowercased()
+        
+        // Map of known domains without TLD to their full form
+        let domainNormalizations: [String: String] = [
+            "youtube": "youtube.com",
+            "github": "github.com",
+            "stackoverflow": "stackoverflow.com",
+            "reddit": "reddit.com",
+            "twitter": "twitter.com",
+            "facebook": "facebook.com",
+            "linkedin": "linkedin.com",
+            "gmail": "gmail.com",
+            "notion": "notion.so",
+            "figma": "figma.com",
+            "slack": "slack.com",
+            "discord": "discord.com",
+            "zoom": "zoom.us",
+            "netflix": "netflix.com",
+            "spotify": "spotify.com",
+            "amazon": "amazon.com"
+        ]
+        
+        // Check if this is a known domain without TLD
+        if let normalized = domainNormalizations[lowercasedDomain] {
+            return normalized
+        }
+        
+        return domain
     }
     
     /**

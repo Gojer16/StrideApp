@@ -2,7 +2,61 @@
 
 All notable changes to the Stride project will be documented in this file.
 
-## [Unreleased] - 2026-03-02
+## [Unreleased] - 2026-03-04
+
+### ✨ Features
+
+- **Weekly Reflection UI Refresh (Notebook Compact + Dense Analyst):**
+  - **Compact Analytics Layout:** Redesigned weekly page with denser information layout and improved readability.
+  - **Section Toggles:** Added `Overview`, `Categories`, and `Log` toggles so users can control visible data sections.
+  - **Default Focus State:** Overview opens by default; Categories and Log start collapsed for a cleaner first impression.
+  - **Metric Strip:** Replaced oversized KPI cards with a compact horizontal metric strip and divider rhythm.
+  - **Bigger Data Typography:** Increased key metric/chart/log text sizes for faster glanceability.
+  - **Categories Polish:** Reworked category chips to be more responsive and visually structured.
+  - **Ranked Emphasis:** Top 3 categories now receive stronger visual treatment, with a subtle crown accent for #1.
+
+### 🔧 Improvements
+
+- **Week Tab Data Freshness & Performance:**
+  - **Live Session Overlay:** Weekly totals now reflect in-progress session activity without waiting for session end.
+  - **Batched Weekly Query:** Replaced per-day query loops with a batched date-range aggregation path.
+  - **Main-Thread Relief:** Weekly loading path moved to background work, reducing UI hitching risk.
+  - **Empty-State Fix:** Corrected logic so empty state appears when week data is truly zeroed.
+  - **Logging Cleanup:** Removed debug query prints from hot weekly paths.
+
+### ✅ Tests
+
+- **Weekly Tab Test Coverage Added:**
+  - **Week Range Semantics:** Verifies Monday-through-today date generation.
+  - **Live Overlay Semantics:** Verifies active session overlay behavior on persisted weekly data.
+  - **Batched Totals:** Verifies weekly date-bucket aggregation via the new `getTimes(for:)` path.
+
+### 🛡️ Fixes
+
+- **Weekly Log Data Integrity & Save Reliability:**
+  - **No Demo Data Pollution:** Removed automatic sample-data seeding on first launch.
+  - **Truthful Save UX:** Entry form now only dismisses on successful DB writes; failed saves surface user-visible errors.
+  - **Stronger SQLite Contracts:** Create/update/delete now validate prepare/bind/step outcomes and return explicit failures.
+  - **Date Boundary Correctness:** Daily entry query now uses `startOfDay -> nextDay(startOfDay)` boundaries.
+  - **Stable Category Suggestions:** Category list ordering is now deterministic and matches SQL ordering.
+  - **Metric Clarity:** Weekly total unit label now reflects hours correctly (no pomodoro mismatch).
+  - **Comment Drift Cleanup:** Updated calendar-view behavior docs to match context-menu delete behavior.
+
+### 🎨 UI Polish
+
+- **Weekly Log “Rhythm Board” Polish Pass:**
+  - **Hero Summary Strip:** Larger key metrics, tighter labels, stronger dividers, and improved contrast.
+  - **Responsive Week Cells:** Prevented overflow/clipping by moving to flexible equal-width day cells.
+  - **Clear No-Data States:** Replaced ambiguous placeholders with explicit `No log` labels.
+  - **Empty State Density:** Reduced excessive whitespace and improved copy tone for first-use clarity.
+  - **Entry Modal Refinement:** Improved modal size, spacing rhythm, day chip legibility, and session-focused copy.
+
+### ✅ Tests
+
+- **Weekly Log Test Coverage Added:**
+  - **CRUD Round Trip:** Verifies create/update/delete persistence.
+  - **Day Boundary Semantics:** Verifies non-midnight date input still resolves correct calendar-day window.
+  - **Category Ordering:** Verifies stable alphabetical category output for suggestions.
 
 ### ✨ Features
 

@@ -40,7 +40,7 @@ struct CurrentSessionView: View {
             ambientBackground
             
             ScrollView {
-                VStack(spacing: 60) {
+                VStack(spacing: 0) {
                     // Top margin for breathing room
                     Spacer().frame(height: 40)
                     
@@ -51,20 +51,27 @@ struct CurrentSessionView: View {
                     }
                     .padding(.horizontal, 40)
                     
-                    // Layer 2: Central Focus (App Branding + Timer)
-                    VStack(spacing: 32) {
+                    // Layer 2: Central Focus (App Branding + Timer) - Compact Hero
+                    VStack(spacing: 24) {
                         appBrandingSection
                         heroTimerSection
                     }
+                    .padding(.bottom, 40)
                     
-                    // Layer 3: Contextual Info (Stats + Recent History)
+                    // Layer 3: Quick Actions Bar
                     if isAnimating {
-                        HStack(spacing: 24) {
-                            statsGlassCard
-                            recentActivityGlassCard
-                        }
-                        .padding(.horizontal, 40)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        QuickActionsBar()
+                            .padding(.horizontal, 40)
+                            .padding(.bottom, 32)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                    
+                    // Layer 4: Dashboard Widgets (Bento Grid)
+                    if isAnimating {
+                        dashboardSection
+                            .padding(.horizontal, 40)
+                            .padding(.bottom, 40)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                     
                     Spacer()
@@ -181,66 +188,111 @@ struct CurrentSessionView: View {
         .animation(DesignSystem.Animation.entrance.spring.delay(0.1), value: isAnimating)
     }
     
+    // MARK: - Dashboard Section
+    
     /**
-     * High-level daily metrics in a glass container.
+     * Bento-grid dashboard with summary widgets.
+     * Provides at-a-glance access to Today's stats, Habits, and Weekly Focus.
      */
-    private var statsGlassCard: some View {
-        VStack(spacing: 20) {
-            statRow(icon: "eye.fill", label: "Visits Today", value: "\(appState.totalVisitsToday)")
-            Divider().opacity(0.5)
-            statRow(icon: "hourglass", label: "Total Time", value: appState.totalTimeToday.formatted())
+    private var dashboardSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // Section header
+            HStack(spacing: 8) {
+                Image(systemName: "square.grid.2x2")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(secondaryText)
+                
+                Text("DASHBOARD")
+                    .font(.system(size: 11, weight: .black))
+                    .tracking(1.5)
+                    .foregroundColor(secondaryText.opacity(0.8))
+            }
+            
+            // Bento grid - 2 columns
+            HStack(alignment: .top, spacing: 20) {
+                // Left column
+                VStack(spacing: 20) {
+                    TodaySummaryWidget()
+                        .environmentObject(appState)
+                    
+                    // Recent Context mini-card
+                    recentContextCard
+                }
+                .frame(maxWidth: .infinity)
+                
+                // Right column
+                VStack(spacing: 20) {
+                    HabitSummaryWidget()
+                    WeeklyFocusWidget()
+                }
+                .frame(maxWidth: .infinity)
+            }
         }
-        .padding(24)
-        .frame(maxWidth: .infinity)
-        .background(glassMaterial)
     }
     
     /**
-     * Real-time history log in a glass container.
+     * Compact recent context card for the dashboard.
      */
-    private var recentActivityGlassCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("RECENT CONTEXT")
-                .font(.system(size: 10, weight: .bold))
-                .tracking(2)
-                .foregroundColor(secondaryText.opacity(0.7))
+    private var recentContextCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 6) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(secondaryText.opacity(0.7))
+                
+                Text("RECENT CONTEXT")
+                    .font(.system(size: 10, weight: .black))
+                    .tracking(1.5)
+                    .foregroundColor(secondaryText.opacity(0.7))
+            }
             
-            VStack(spacing: 12) {
-                // We filter the current app to avoid redundancy
+            VStack(spacing: 10) {
                 let displayApps = appState.recentApps
                     .filter { $0.name != appState.activeAppName }
                     .prefix(3)
                 
                 if displayApps.isEmpty {
-                    Text("No recent context")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
+                    HStack {
+                        Spacer()
+                        Text("No recent apps")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(secondaryText.opacity(0.5))
+                        Spacer()
+                    }
+                    .padding(.vertical, 8)
                 } else {
                     ForEach(displayApps) { app in
-                        HStack {
+                        HStack(spacing: 10) {
                             Image(systemName: guessIcon(for: app.name))
-                                .font(.system(size: 12))
+                                .font(.system(size: 11))
                                 .foregroundColor(appState.currentCategoryColor)
                                 .frame(width: 24, height: 24)
                                 .background(appState.currentCategoryColor.opacity(0.1))
-                                .clipShape(Circle())
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                             
                             Text(app.name)
                                 .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(textColor)
                             
                             Spacer()
                             
                             Text(app.totalTimeSpent.formatted())
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundColor(secondaryText)
                         }
                     }
                 }
             }
         }
-        .padding(24)
-        .frame(maxWidth: .infinity)
-        .background(glassMaterial)
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: .black.opacity(0.03), radius: 15, x: 0, y: 5)
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.black.opacity(0.05), lineWidth: 1)
+        )
     }
     
     /**
@@ -280,27 +332,6 @@ struct CurrentSessionView: View {
                     .stroke(.white.opacity(0.5), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.03), radius: 20, x: 0, y: 10)
-    }
-    
-    /**
-     * Standardized row for key-value statistics.
-     */
-    private func statRow(icon: String, label: String, value: String) -> some View {
-        HStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.system(size: 18))
-                .foregroundColor(appState.currentCategoryColor)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(secondaryText)
-                Text(value)
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundColor(textColor)
-            }
-            Spacer()
-        }
     }
     
     /**

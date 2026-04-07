@@ -18,22 +18,85 @@ struct TodayTabTests {
         #expect(stats.browserDomains.isEmpty)
         #expect(stats.totalActiveTime == 0)
         #expect(stats.totalPassiveTime == 0)
-        #expect(stats.totalVisits == 0)
+        #expect(stats.totalTrackedApps == 0)
+        #expect(stats.focusedAppName == nil)
         #expect(stats.categoryBreakdown.isEmpty)
     }
     
     @Test("BrowserDomain total time calculation")
     func browserDomainTotalTime() {
         let domain = BrowserDomain(
-            domain: "github.com",
+            domain: "youtube.com",
             browserApp: "Chrome",
             activeTime: 1800,
             passiveTime: 600
         )
         
         #expect(domain.totalTime == 2400)
-        #expect(domain.domain == "github.com")
+        #expect(domain.domain == "youtube.com")
         #expect(domain.browserApp == "Chrome")
+    }
+    
+    @Test("BrowserDomain display names")
+    func browserDomainDisplayNames() {
+        let youtube = BrowserDomain(domain: "youtube.com", browserApp: "Chrome", activeTime: 100, passiveTime: 0)
+        let github = BrowserDomain(domain: "github.com", browserApp: "Safari", activeTime: 100, passiveTime: 0)
+        let stackoverflow = BrowserDomain(domain: "stackoverflow.com", browserApp: "Chrome", activeTime: 100, passiveTime: 0)
+        let unknown = BrowserDomain(domain: "somesite.io", browserApp: "Chrome", activeTime: 100, passiveTime: 0)
+        
+        #expect(youtube.displayName == "YouTube")
+        #expect(github.displayName == "GitHub")
+        #expect(stackoverflow.displayName == "Stack Overflow")
+        #expect(unknown.displayName == "Somesite")
+    }
+    
+    @Test("BrowserDomain category colors")
+    func browserDomainCategoryColors() {
+        // Entertainment (Purple)
+        let youtube = BrowserDomain(domain: "youtube.com", browserApp: "Chrome", activeTime: 100, passiveTime: 0)
+        let netflix = BrowserDomain(domain: "netflix.com", browserApp: "Safari", activeTime: 100, passiveTime: 0)
+        
+        // Social (Slate Blue)
+        let twitter = BrowserDomain(domain: "twitter.com", browserApp: "Chrome", activeTime: 100, passiveTime: 0)
+        let reddit = BrowserDomain(domain: "reddit.com", browserApp: "Chrome", activeTime: 100, passiveTime: 0)
+        
+        // Development (Brown/Orange)
+        let github = BrowserDomain(domain: "github.com", browserApp: "Chrome", activeTime: 100, passiveTime: 0)
+        let stackoverflow = BrowserDomain(domain: "stackoverflow.com", browserApp: "Chrome", activeTime: 100, passiveTime: 0)
+        
+        // Productivity (Moss Green)
+        let notion = BrowserDomain(domain: "notion.so", browserApp: "Chrome", activeTime: 100, passiveTime: 0)
+        let figma = BrowserDomain(domain: "figma.com", browserApp: "Chrome", activeTime: 100, passiveTime: 0)
+        
+        // Communication (Teal)
+        let slack = BrowserDomain(domain: "slack.com", browserApp: "Chrome", activeTime: 100, passiveTime: 0)
+        let discord = BrowserDomain(domain: "discord.com", browserApp: "Chrome", activeTime: 100, passiveTime: 0)
+        
+        // Unknown (Gray)
+        let unknown = BrowserDomain(domain: "unknown-site.com", browserApp: "Chrome", activeTime: 100, passiveTime: 0)
+        
+        // Entertainment
+        #expect(youtube.categoryColor == "#7A6B8A")
+        #expect(netflix.categoryColor == "#7A6B8A")
+        
+        // Social
+        #expect(twitter.categoryColor == "#5B7C8C")
+        #expect(reddit.categoryColor == "#5B7C8C")
+        
+        // Development
+        #expect(github.categoryColor == "#B8834C")
+        #expect(stackoverflow.categoryColor == "#B8834C")
+        
+        // Productivity
+        #expect(notion.categoryColor == "#4A7C59")
+        #expect(figma.categoryColor == "#4A7C59")
+        
+        // Communication
+        #expect(slack.categoryColor == "#5A8C7C")
+        #expect(discord.categoryColor == "#5A8C7C")
+        
+        // Unknown defaults to gray
+        #expect(unknown.categoryColor == "#6B7B7B")
     }
     
     @Test("BrowserDomain has unique IDs")
@@ -76,11 +139,32 @@ struct TodayTabTests {
     
     @Test("YouTube variations", arguments: [
         "youtube.com",
-        "https://www.youtube.com/watch?v=123"
+        "https://www.youtube.com/watch?v=123",
+        "YouTube - Chrome",
+        "YouTube",
+        "YouTube Music - Chrome"
     ])
     func youtubeVariations(title: String) {
         let domain = DomainParser.extractDomain(from: title)
         #expect(domain == "youtube.com")
+    }
+    
+    @Test("Domain normalization consistency")
+    func domainNormalizationConsistency() {
+        // These should all return the same domain
+        let titles = [
+            "YouTube - Chrome",
+            "youtube.com",
+            "https://www.youtube.com/watch?v=123",
+            "YouTube Video Title",
+            "www.youtube.com"
+        ]
+        
+        let domains = titles.compactMap { DomainParser.extractDomain(from: $0) }
+        let uniqueDomains = Set(domains.map { $0.lowercased() })
+        
+        #expect(uniqueDomains.count == 1)
+        #expect(domains.allSatisfy { $0.lowercased() == "youtube.com" })
     }
     
     // MARK: - TimeInterval Formatting Tests
@@ -128,9 +212,10 @@ struct TodayTabTests {
     @Test("Default idle threshold")
     func defaultIdleThreshold() {
         let prefs = UserPreferences.shared
-        // Default is 65 seconds
+        // Default is 65 seconds but user may have changed it
+        // Range is 15s to 70min (4200s)
         #expect(prefs.idleThreshold >= 15)
-        #expect(prefs.idleThreshold <= 300)
+        #expect(prefs.idleThreshold <= 4200)
     }
     
     @Test("Logical start of today calculation")
@@ -243,7 +328,8 @@ struct TodayTabTests {
             browserDomains: [domain],
             totalActiveTime: 9900,
             totalPassiveTime: 900,
-            totalVisits: 5,
+            totalTrackedApps: 2,
+            focusedAppName: "Xcode",
             categoryBreakdown: [(category, 10800)]
         )
         
@@ -251,7 +337,8 @@ struct TodayTabTests {
         #expect(stats.browserDomains.count == 1)
         #expect(stats.totalActiveTime == 9900)
         #expect(stats.totalPassiveTime == 900)
-        #expect(stats.totalVisits == 5)
+        #expect(stats.totalTrackedApps == 2)
+        #expect(stats.focusedAppName == "Xcode")
         #expect(stats.categoryBreakdown.count == 1)
     }
     
@@ -303,6 +390,50 @@ struct TodayTabTests {
         #expect(mutableHourly[20] == 600)
         #expect(mutableHourly[0] == 0)
         #expect(mutableHourly[23] == 0)
+    }
+    
+    @Test("Sparkline data normalization")
+    func sparklineNormalization() {
+        // Test that sparkline correctly normalizes data
+        let hourlyData: [TimeInterval] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 1800, 2400, 1200, 0, 0, 600, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        
+        #expect(hourlyData.count == 24)
+        
+        let maxValue = hourlyData.max() ?? 1
+        #expect(maxValue == 2400)
+        
+        // Normalize
+        let normalized = hourlyData.map { $0 / maxValue }
+        #expect(normalized[10] == 1.0) // Max value normalized to 1.0
+        #expect(normalized[9] == 1800.0 / 2400.0) // 0.75
+        #expect(normalized[0] == 0.0) // Zero stays zero
+    }
+    
+    @Test("AppStats with hourly usage")
+    func appStatsWithHourlyUsage() {
+        let category = Category(name: "Work", icon: "briefcase.fill", color: "#C75B39", order: 0)
+        let app = AppUsage(
+            id: UUID(),
+            name: "Xcode",
+            categoryId: category.id.uuidString,
+            firstSeen: Date(),
+            lastSeen: Date(),
+            totalTimeSpent: 7200,
+            visitCount: 5,
+            windows: []
+        )
+        
+        let hourlyData: [TimeInterval] = Array(repeating: 300, count: 24)
+        
+        let appStats = TodayStats.AppStats(
+            app: app,
+            activeTime: 6600,
+            passiveTime: 600,
+            hourlyUsage: hourlyData
+        )
+        
+        #expect(appStats.hourlyUsage.count == 24)
+        #expect(appStats.hourlyUsage.allSatisfy { $0 == 300 })
     }
     
     @Test("Active vs passive time separation")

@@ -31,16 +31,17 @@ final class UserPreferences: ObservableObject {
     
     /// Idle threshold in seconds. Default is 65 seconds.
     /// Sessions pause when no keyboard/mouse input detected for this duration.
+    /// Maximum: 4200 seconds (70 minutes)
     @AppStorage("idleThresholdSeconds") private var _idleThresholdSeconds: Int = 65
     
-    /// Idle threshold as TimeInterval with validation (15-300 seconds)
+    /// Idle threshold as TimeInterval with validation (15-4200 seconds = 15s to 70min)
     var idleThreshold: TimeInterval {
         get {
-            let validated = max(15, min(300, _idleThresholdSeconds))
+            let validated = max(15, min(4200, _idleThresholdSeconds))
             return TimeInterval(validated)
         }
         set {
-            _idleThresholdSeconds = Int(max(15, min(300, newValue)))
+            _idleThresholdSeconds = Int(max(15, min(4200, newValue)))
         }
     }
     

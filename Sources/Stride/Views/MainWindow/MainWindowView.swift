@@ -17,7 +17,7 @@ struct MainWindowView: View {
         ("Categories", "chart.pie.fill", "Manage categories"),
         ("Weekly Log", "clock.badge.checkmark", "Track pomodoros"),
         ("Today", "calendar", "Today's summary"),
-        ("This Week", "chart.line.uptrend.xyaxis", "Weekly patterns"),
+        ("Week", "chart.line.uptrend.xyaxis", "Weekly patterns"),
         ("Habit Tracker", "leaf.fill", "Track your habits"),
         ("Settings", "gearshape.fill", "App preferences")
     ]

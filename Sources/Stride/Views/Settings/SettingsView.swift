@@ -134,28 +134,28 @@ struct SettingsView: View {
                         .font(.system(size: 15, weight: .medium))
                         .foregroundColor(textColor)
                     
-                    Text("\(Int(preferences.idleThreshold)) seconds")
+                    Text(formatIdleThreshold(preferences.idleThreshold))
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundColor(accentColor)
-                        .frame(width: 80, alignment: .leading)
+                        .frame(width: 100, alignment: .leading)
                 }
                 
                 Slider(value: Binding(
                     get: { preferences.idleThreshold },
                     set: { preferences.idleThreshold = $0 }
-                ), in: 15...300, step: 5)
+                ), in: 15...4200, step: 15)
                 .tint(accentColor)
                 
-                // Quick presets
+                // Quick presets (mixed seconds and minutes)
                 HStack(spacing: 12) {
-                    ForEach([30, 65, 120, 180], id: \.self) { preset in
+                    ForEach([30, 65, 300, 600, 1800, 4200], id: \.self) { preset in
                         Button(action: {
                             preferences.idleThreshold = TimeInterval(preset)
                         }) {
-                            Text("\(preset)s")
-                                .font(.system(size: 12, weight: .medium))
+                            Text(formatIdleThreshold(TimeInterval(preset)))
+                                .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(Int(preferences.idleThreshold) == preset ? .white : secondaryText)
-                                .padding(.horizontal, 12)
+                                .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
                                 .background(
                                     Capsule()
@@ -211,6 +211,21 @@ struct SettingsView: View {
             return "Noon (12:00 PM)"
         } else {
             return "\(hour - 12):00 PM"
+        }
+    }
+    
+    private func formatIdleThreshold(_ seconds: TimeInterval) -> String {
+        let totalSeconds = Int(seconds)
+        if totalSeconds < 60 {
+            return "\(totalSeconds)s"
+        } else {
+            let minutes = totalSeconds / 60
+            let remainingSeconds = totalSeconds % 60
+            if remainingSeconds == 0 {
+                return "\(minutes)m"
+            } else {
+                return "\(minutes)m \(remainingSeconds)s"
+            }
         }
     }
     
